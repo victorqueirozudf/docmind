@@ -1,0 +1,9 @@
+# Ignorar arquivos sensíveis
+.env
+secrets.json
+
+# Ignorar dependências do Node.js
+/node_modules
+
+# Ignorar ambientes virtuais Python
+/venv
