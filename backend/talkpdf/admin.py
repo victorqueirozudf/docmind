@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UserPdf
+from .models import MessageTalkPdf
 
 # Register your models here.
-admin.site.register(UserPdf)
+admin.site.register(MessageTalkPdf)
