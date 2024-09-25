@@ -1,6 +1,7 @@
 # Ignorar arquivos sensíveis
 .env
 secrets.json
+db.sqlite3
 
 # Ignorar dependências do Node.js
 /node_modules
