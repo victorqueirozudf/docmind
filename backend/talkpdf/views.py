@@ -6,8 +6,8 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import UserPdf, MessageTalkPdf
-from .serializers import UserPdfSerializer, MessageTalkPdfSerializer
+from .models import MessageTalkPdf
+from .serializers import MessageTalkPdfSerializer
 
 from dotenv import load_dotenv, find_dotenv
 from openai import OpenAI
@@ -46,28 +46,13 @@ def index(request):
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "Você é um assistente que fala português e é muito curioso."},
-            {"role": "user", "content": "Me fala uma curiosidade sobre o jogo grand thelf auto iv."},
+            {"role": "user", "content": "Me fala uma curiosidade aleatória sobre história."},
         ]
     )
 
     curiosidade = dict(curiosidade.choices[0].message)
 
     return HttpResponse(curiosidade['content'])
-
-# Aqui é uma classe de uma api
-class UserPdfView(APIView):
-    def get(self, request, *args, **kwargs):
-        result = UserPdf.objects.all()
-        serializers = UserPdfSerializer(result, many=True)
-        return Response({'status': 'success', "UserPdfs": serializers.data}, status=200)
-
-    def post(self, request):
-        serializer = UserPdfSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"status": "success", "data": serializer.data}, status=status.HTTP_200_OK)
-        else:
-            return Response({"status": "error", "data": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # Classe para uma api simples, com o objetivo de retornar uma mensagem da função curiosidade_da_openai
