@@ -22,6 +22,7 @@ pip-log.txt
 *.pyc
 *.pyo
 *.pyd
+venv/
 media/
 staticfiles/
 *.sqlite3
