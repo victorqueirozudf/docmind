@@ -8,6 +8,7 @@ __pycache__/
 *.log
 *.env
 *.venv/
+venv/
 *.egg-info/
 dist/
 build/
@@ -16,13 +17,13 @@ pip-log.txt
 *.egg
 *.whl
 *.DS_Store
+.idea/
 
 # Django
 *.pot
 *.pyc
 *.pyo
 *.pyd
-venv/
 media/
 staticfiles/
 *.sqlite3
