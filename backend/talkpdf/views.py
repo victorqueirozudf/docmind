@@ -17,7 +17,7 @@ def index(request):
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "Você é um assistente que fala português e é muito curioso."},
-            {"role": "user", "content": "Me fala uma curiosidade, sobre o dia vinte de setembro, aleatória."},
+            {"role": "user", "content": "Me fala uma curiosidade sobre o jogo grand thelf auto iv."},
         ]
     )
 
