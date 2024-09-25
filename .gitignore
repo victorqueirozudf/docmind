@@ -1,10 +1,63 @@
-# Ignorar arquivos sensíveis
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.log
+*.env
+*.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-log.txt
+*.egg
+*.whl
+*.DS_Store
+
+# Django
+*.pot
+*.pyc
+*.pyo
+*.pyd
+media/
+staticfiles/
+*.sqlite3
+*.log
+*.env
+*.local
+__pycache__/
+*.cache
+*.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+*.pdb
+
+# React
+node_modules/
+build/
+coverage/
 .env
-secrets.json
-db.sqlite3
+*.local
+*.log
+npm-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
 
-# Ignorar dependências do Node.js
-/node_modules
+# Visual Studio Code
+.vscode/
+*.code-workspace
 
-# Ignorar ambientes virtuais Python
-/venv
+# Mac
+.DS_Store
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Icon?
