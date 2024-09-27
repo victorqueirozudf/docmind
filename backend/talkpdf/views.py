@@ -13,10 +13,9 @@ from dotenv import load_dotenv, find_dotenv
 from openai import OpenAI
 import os
 
-from django.utils import timezone
-
 # carrega o meu arquivo .env, que contem minha chave openai
 load_dotenv(find_dotenv())
+
 
 # função simples para teste, neste, com um prompt já pré-determinado, gero um mensagem da api da openai
 def curiosidade_da_openai(input) -> str:
