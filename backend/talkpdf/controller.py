@@ -79,7 +79,7 @@ def load_vectorstore(course, pdf_docs):
 
 #def ask_question():
     # Obtém o arquivo PDF e a pergunta
-pdf_file = [f'C:\\Users\\pragm\\Downloads\\Profile.pdf']
+pdf_file = [f'Profile.pdf']
 
 # Salva o arquivo PDF
 #pdf_path = default_storage.save(f"temp/{pdf_file.name}", pdf_file)
