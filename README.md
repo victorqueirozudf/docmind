@@ -32,4 +32,6 @@ Após executar esses comando, ainda na raíz, você vai criar um arquivo chamado
 
 Para executar o backend, é bem simples. Após baixar o nosso projeto, você vai na raíz. Na raíz, digite os seguintes comandos: **cd backend**
 
+Digite **npm install**
+
 Depois, digite **npm start**

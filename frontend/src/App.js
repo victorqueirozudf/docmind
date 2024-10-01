@@ -1,44 +1,67 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 function App() {
-    const [pdfFile, setPdfFile] = useState(null);
-    const [question, setQuestion] = useState('');
-    const [answer, setAnswer] = useState('');
+  const [pdfFiles, setPdfFiles] = useState(null);
+  const [question, setQuestion] = useState('');
+  const [response, setResponse] = useState('');
+  const [loading, setLoading] = useState(false);
 
-    const handleFileChange = (event) => {
-        setPdfFile(event.target.files[0]);
-    };
+  // Função para enviar os PDFs e a pergunta ao backend
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setLoading(true);
 
-    const handleSubmit = async (event) => {
-        event.preventDefault();
-        const formData = new FormData();
-        formData.append('pdf', pdfFile);
-        formData.append('question', question);
+    const formData = new FormData();
+    if (pdfFiles) {
+      for (let i = 0; i < pdfFiles.length; i++) {
+        formData.append('pdfs', pdfFiles[i]);
+      }
+    }
+    formData.append('question', question);
 
-        const response = await fetch('http://localhost:8000/talkpdf/ask/', {
-            method: 'POST',
-            body: formData,
-        });
+    fetch('http://localhost:8000/talkpdf/message/', {
+      method: 'POST',
+      body: formData,
+    })
+      .then(response => response.json())
+      .then(data => {
+        setResponse(data.answer);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Erro ao enviar os arquivos:', error);
+        setLoading(false);
+      });
+  };
 
-        const data = await response.json();
-        setAnswer(data.answer);
-    };
-
-    return (
+  return (
+    <div>
+      <h1>Envio de PDFs e Perguntas</h1>
+      <form onSubmit={handleSubmit}>
+        <input
+          type="file"
+          multiple
+          onChange={(e) => setPdfFiles(e.target.files)}
+          accept="application/pdf"
+        />
+        <input
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Digite sua pergunta"
+        />
+        <button type="submit">Enviar</button>
+      </form>
+      <script>console.log(response);</script>
+      {loading && <p>Processando...</p>}
+      {response && (
         <div>
-            <form onSubmit={handleSubmit}>
-                <input type="file" onChange={handleFileChange} />
-                <input
-                    type="text"
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    placeholder="Faça sua pergunta"
-                />
-                <button type="submit">Perguntar</button>
-            </form>
-            {answer && <p>Resposta: {answer}</p>}
+          <h2>Resposta:</h2>
+          <p>{response}</p>
         </div>
-    );
+      )}
+    </div>
+  );
 }
 
 export default App;
