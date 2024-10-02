@@ -129,3 +129,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Permitir todas as origens (não recomendado para produção)
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Ou para restringir a origens específicas
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",  # Endereço do React
+# ]

@@ -60,7 +60,6 @@ def index(request):
 
     return HttpResponse(curiosidade['content'])
 
-
 # Classe para uma api simples, com o objetivo de retornar uma mensagem da função curiosidade_da_openai
 class MessageTalkPdfView(APIView):
 
@@ -158,5 +157,6 @@ class PDFProcessView(APIView):
         raw_answer = conversation_chain({'question': question})
         answer = raw_answer['chat_history'][-1].content
         print(answer)
+        print(pdf_files)
         # Retorna a resposta em JSON
-        return JsonResponse({'status': 'success', 'message': answer}, status=status.HTTP_201_CREATED)
+        return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 function App() {
   const [pdfFiles, setPdfFiles] = useState(null);
@@ -52,12 +53,11 @@ function App() {
         />
         <button type="submit">Enviar</button>
       </form>
-      <script>console.log(response);</script>
       {loading && <p>Processando...</p>}
       {response && (
         <div>
           <h2>Resposta:</h2>
-          <p>{response}</p>
+          <ReactMarkdown>{response}</ReactMarkdown>
         </div>
       )}
     </div>
