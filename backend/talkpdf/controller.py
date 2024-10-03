@@ -3,9 +3,9 @@ from PyPDF2 import PdfReader
 from dotenv import load_dotenv, find_dotenv
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 
-from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 
+from langchain.text_splitter import CharacterTextSplitter
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 
@@ -32,10 +32,9 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
-
 def lista_curriculos():
     print("Loading data...")
-    pdf_folder_path = f"C:\\Users\\victo\\Desktop\\curriculos"
+    pdf_folder_path = f"C:\\docmind\\temp"
     print(os.listdir(pdf_folder_path))
 
     # Load multiple PDF files
@@ -80,26 +79,21 @@ def get_conversation_chain(vectorstore):
         retriever=vectorstore.as_retriever(),
         memory=memory
     )
-    #print(memory.load_memory_variable({}))
     return conversation_chain
 
-
-#def ask_question():
-# Obtém o arquivo PDF e a pergunta
-#pdf_file = [f'C:\\Users\\victo\\Desktop\\curriculos\\Profile.pdf']
-
-# Salva o arquivo PDF
-#pdf_path = default_storage.save(f"temp/{pdf_file.name}", pdf_file)
-
 # Processa o PDF
-#raw_text = get_pdf_text(pdf_file)
-text_chunks = lista_curriculos()#get_text_chunks(raw_text)
+text_chunks = lista_curriculos()
 vectorstore = get_vectorstore(text_chunks)
 
 # Cria a cadeia de conversação
-#while True:
-question = str(input('Faça sua pergunta: '))
-conversation_chain = get_conversation_chain(vectorstore)
-raw_answer = conversation_chain({'question': question})
-answer = raw_answer['chat_history'][-1].content
-print(answer)
+while True:
+    question = str(input('Faça sua pergunta: '))
+    conversation_chain = get_conversation_chain(vectorstore)
+    raw_answer = conversation_chain({'question': question})
+    try:
+        print(raw_answer['chat_history'].content)
+    except:
+        print("Deu ruim e foda-se!")
+        pass
+    answer = raw_answer['chat_history'][-1].content
+    print(answer)

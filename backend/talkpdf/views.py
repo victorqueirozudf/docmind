@@ -132,7 +132,7 @@ class PDFProcessView(APIView):
         return vectorstore
 
     def get_conversation_chain(self, vectorstore):
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
         memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
         conversation_chain = ConversationalRetrievalChain.from_llm(
             llm=llm,
