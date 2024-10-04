@@ -67,7 +67,6 @@ class PDFProcessView(APIView):
         return Response(response, status=status.HTTP_200_OK)
 """
 
-
 # LÓGICA DO SISTEMA AQUI, COMENTADO PARA SER FEITO MAIS TESTES
 
 import os
@@ -99,8 +98,8 @@ def extract_text_from_pdf(pdf_docs):
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
         separator="\n",
-        chunk_size=512,
-        chunk_overlap=200,
+        chunk_size=1024,
+        chunk_overlap=256,
         length_function=len
     )
     chunks = text_splitter.split_text(text)
@@ -130,14 +129,16 @@ class PDFProcessView(APIView):
         workflow = StateGraph(state_schema=MessagesState)
 
         # Modelo de chat
-        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
+        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
 
         def call_model(state: MessagesState, vectorstore):
-            # Acessa todas as mensagens do estado
-            retrieved_docs = vectorstore.as_retriever().get_relevant_documents(state["messages"][-1].content)
+            retriever = vectorstore.as_retriever()
+            retrieved_docs = retriever.invoke(state["messages"][-1].content, top_k=10)
 
             # Concatene os resultados dos documentos recuperados
             pdf_response = "\n".join([doc.page_content for doc in retrieved_docs])
+
+            print(pdf_response)
 
             input_user = state["messages"] + [HumanMessage(content=pdf_response)]
 
