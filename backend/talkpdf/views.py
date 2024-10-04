@@ -1,5 +1,78 @@
+"""
 import os
 import uuid
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from langchain_core.messages import HumanMessage
+from langgraph.graph import START, MessagesState, StateGraph
+from langchain_openai import ChatOpenAI
+from .checkpointer import DjangoSaver
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
+
+class PDFProcessView(APIView):
+    def post(self, request, *args, **kwargs):
+        question = request.data.get("question")
+        thread_id = request.data.get("thread_id", "123")  # Usar 123 como padrão se não for passado
+
+        # Verificar se a pergunta foi fornecida
+        if not question:
+            return Response({"error": "A pergunta é necessária"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Criar uma instância do DjangoSaver para checkpoints
+        checkpointer = DjangoSaver()
+
+        # Definir um novo grafo
+        workflow = StateGraph(state_schema=MessagesState)
+
+        # Modelo de chat
+        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
+
+        def call_model(state: MessagesState):
+            print("Estado antes da chamada ao modelo:", state)
+            query = state["messages"][-1].content  # Pegue a última mensagem do usuário
+            print("Última pergunta:", query)
+
+            print(str(state["messages"]))
+
+            response = model.invoke(state["messages"])  # Chama o modelo
+            # print("Resposta do modelo:", response)
+            return {"messages": response}
+
+        # Definir os nós no grafo
+        workflow.add_edge(START, "model")
+        workflow.add_node("model", lambda state: call_model(state))
+
+        config = {"configurable": {"thread_id": thread_id}}
+
+        # Compilando o app
+        app = workflow.compile(checkpointer=checkpointer)
+
+        # Criar a mensagem de entrada
+        input_message = HumanMessage(content=question)
+        events = []
+
+        # Executar o fluxo de conversa
+        for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
+            events.append(event)
+
+        # Retornar o último estado do chat e o UUID do thread
+        response = {
+            "thread_id": thread_id,
+            "last_message": events[-1]["messages"][-1].content if events else "Sem resposta disponível"
+        }
+
+        return Response(response, status=status.HTTP_200_OK)
+"""
+
+
+# LÓGICA DO SISTEMA AQUI, COMENTADO PARA SER FEITO MAIS TESTES
+
+import os
+import uuid
+from django.http import HttpResponse, JsonResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,15 +83,18 @@ from langgraph.graph import START, MessagesState, StateGraph
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from PyPDF2 import PdfReader
 from langchain_community.vectorstores import FAISS
-from .models import ChatGraph
+from .checkpointer import DjangoSaver
+from dotenv import load_dotenv, find_dotenv
 
-def extract_text_from_pdf(pdf_path):
-    reader = PdfReader(pdf_path)
+load_dotenv(find_dotenv())
+
+def extract_text_from_pdf(pdf_docs):
     text = ""
-    for page in reader.pages:
-        text += page.extract_text()
+    for pdf in pdf_docs:
+        pdf_reader = PdfReader(pdf)
+        for page in pdf_reader.pages:
+            text += page.extract_text()
     return text
-
 
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
@@ -30,90 +106,84 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
-
 def get_vectorstore(text_chunks):
     embeddings = OpenAIEmbeddings()
     vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
 
-class ChatGraphView(APIView):
-    def post(self, request):
-        user_id = request.data.get("user_id", str(uuid.uuid4()))  # Gera um novo UUID se não for fornecido
-        files = request.FILES.getlist("files")
+class PDFProcessView(APIView):
+    def post(self, request, *args, **kwargs):
+        # os arquivos que iria receber
+        pdf = request.FILES.getlist("pdfs")
         question = request.data.get("question")
+        thread_id = request.data.get("thread_id", 123)  # Usar 123 como padrão se não for passado
 
-        # Tenta buscar um grafo existente associado ao user_id
-        chat_graph, created = ChatGraph.objects.get_or_create(user_id=user_id)
+        # Verificar se o PDF e a pergunta foram fornecidos
+        if not pdf or not question:
+            return Response({"error": "PDF e pergunta são necessários"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Extrair e indexar texto dos PDFs
-        all_documents = []
-        for file in files:
-            temp_file_path = os.path.join('/tmp', file.name)  # Salva o arquivo temporariamente
-            with open(temp_file_path, 'wb+') as destination:
-                for chunk in file.chunks():
-                    destination.write(chunk)
-            text = extract_text_from_pdf(temp_file_path)
-            all_documents.extend(get_text_chunks(text))
+        # Criar uma instância do DjangoSaver para checkpoints
+        checkpointer = DjangoSaver()
 
-        # Atualiza o grafo existente ou cria um novo
-        if created:
-            # Se um novo grafo foi criado, armazena os documentos
-            chat_graph.graph_data = all_documents  # Certifique-se de que graph_data é o campo correto
-        else:
-            # Se o grafo já existia, atualiza os dados existentes
-            existing_documents = get_text_chunks(chat_graph.graph_data)  # Obtenha os documentos existentes
-            all_documents = existing_documents + all_documents  # Combine os documentos
-            chat_graph.graph_data = all_documents  # Atualize o grafo com novos dados
-
-        chat_graph.save()  # Salva as alterações no grafo
-
-        # Recuperar o grafo existente para uso posterior
-        existing_graph_data = chat_graph.graph_data
-
-        # Criar o workflow com o estado existente
+        # Definir um novo grafo
         workflow = StateGraph(state_schema=MessagesState)
 
         # Modelo de chat
         model = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
 
-        # Função que chama o modelo e busca no PDF
         def call_model(state: MessagesState, vectorstore):
-            query = state["messages"][-1].content  # Pegue a última mensagem do usuário
-            retriever = vectorstore.as_retriever()
-            retrieved_docs = retriever.get_relevant_documents(query)
-            pdf_response = "\n".join([doc.page_content for doc in retrieved_docs])  # Concatene os resultados
+            # Acessa todas as mensagens do estado
+            retrieved_docs = vectorstore.as_retriever().get_relevant_documents(state["messages"][-1].content)
 
-            response = model.invoke([state["messages"][-1], HumanMessage(
-                content=pdf_response)])  # Chama o modelo e inclui os resultados do PDF
+            # Concatene os resultados dos documentos recuperados
+            pdf_response = "\n".join([doc.page_content for doc in retrieved_docs])
+
+            input_user = state["messages"] + [HumanMessage(content=pdf_response)]
+
+            prompt = [
+                (
+                    "system",
+                    "Você é um assistente muito útil na leitura de documento, auxiliando o usuário em dúvidas sobre documentos, fornecendo resumos sobre documentos e sugerindo idéias, quando solicitado."
+                ),
+                (
+                    "human",
+                    str(input_user)
+                )
+            ]
+
+            #print("O que é mandado: " + prompt)
+
+            # Chama o modelo passando todas as mensagens do estado
+            response = model.invoke(prompt)
+
             return {"messages": response}
 
         # Definir os nós no grafo
         workflow.add_edge(START, "model")
-        workflow.add_node("model",
-                          lambda state: call_model(state, vectorstore))  # Passar o vectorstore dentro da função
+        workflow.add_node("model", lambda state: call_model(state, vectorstore))  # Passar o vectorstore dentro da função
 
-        # Adicionando memória
-        memory = MemorySaver()
-
-        # Compilando o app
-        app = workflow.compile(
-            checkpointer=memory
-        )
-
-        # Gerar UUID para identificar conversas
-        thread_id = uuid.uuid4()
         config = {"configurable": {"thread_id": thread_id}}
 
-        # Indexar os dados do grafo existente
-        vectorstore = get_vectorstore(existing_graph_data)
+        app = workflow.compile(checkpointer=checkpointer)
 
-        # Preparar a mensagem do usuário
+        # Extraindo e processando o PDF
+        curriculos = extract_text_from_pdf(pdf)
+        chucks = get_text_chunks(curriculos)
+        vectorstore = get_vectorstore(chucks)
+
+        # Criar a mensagem de entrada
         input_message = HumanMessage(content=question)
+        events = []
 
-        # Interagir com o modelo
+        # Executar o fluxo de conversa
         for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
-            response_message = event["messages"][-1].content  # Captura a última mensagem gerada
-            return Response({"response": response_message}, status=status.HTTP_200_OK)
+            events.append(event)
 
-        return Response({"error": "Failed to generate response."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Retornar o último estado do chat e o UUID do thread
+        answer = {
+            "thread_id": thread_id,
+            "last_message": events[-1]["messages"][-1].content if events else "Sem resposta disponível"
+        }
+
+        return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)

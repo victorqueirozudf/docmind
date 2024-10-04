@@ -11,7 +11,7 @@ import os
 
 load_dotenv(find_dotenv())
 
-"""def lista_curriculos():
+def lista_curriculos():
     print("Loading data...")
     pdf_folder_path = f"C:\\docmind\\temp"
     print(os.listdir(pdf_folder_path))
@@ -41,7 +41,7 @@ load_dotenv(find_dotenv())
         documents = text_splitter.split_text(text)
         all_documents.extend(documents)
 
-    return all_documents"""
+    return all_documents
 
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
