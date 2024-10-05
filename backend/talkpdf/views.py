@@ -181,6 +181,7 @@ class PDFProcessView(APIView):
         for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
             events.append(event)
 
+<<<<<<< Updated upstream
         # Retornar o último estado do chat e o UUID do thread
         answer = {
             "thread_id": thread_id,
@@ -188,3 +189,62 @@ class PDFProcessView(APIView):
         }
 
         return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)
+=======
+class PDFProcessView(APIView):
+    parser_classes = [MultiPartParser]
+
+    def get_pdf_text(self, pdf_docs):
+        text = ""
+        for pdf in pdf_docs:
+            pdf_reader = PdfReader(pdf)
+            for page in pdf_reader.pages:
+                text += page.extract_text()
+        return text
+
+    def get_text_chunks(self, text):
+        text_splitter = CharacterTextSplitter(
+            separator="\n",
+            chunk_size=512,
+            chunk_overlap=200,
+            length_function=len
+        )
+        chunks = text_splitter.split_text(text)
+        return chunks
+
+    def get_vectorstore(self, text_chunks):
+        embeddings = OpenAIEmbeddings()
+        vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+        return vectorstore
+
+    def get_conversation_chain(self, vectorstore, question):
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+        memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
+        conversation_chain = ConversationalRetrievalChain.from_llm(
+            llm=llm,
+            retriever=vectorstore.as_retriever(),
+            memory=memory
+        )
+        retriver = vectorstore.as_retriever().get_relevant_documents(question)
+        print(retriver)
+        return conversation_chain
+
+    def post(self, request, *args, **kwargs):
+        pdf_files = request.FILES.getlist('pdfs')
+        question = request.data.get('question', '')
+
+        # Extrai texto dos PDFs
+        raw_text = self.get_pdf_text(pdf_files)
+        text_chunks = self.get_text_chunks(raw_text)
+
+        # Cria o vectorstore
+        vectorstore = self.get_vectorstore(text_chunks)
+
+        # Gera resposta com o modelo
+        conversation_chain = self.get_conversation_chain(vectorstore, question)
+        raw_answer = conversation_chain({'question': question})
+        answer = raw_answer['chat_history'][-1].content
+        print(answer)
+        print(pdf_files)
+        # Retorna a resposta em JSON
+        return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)
+>>>>>>> Stashed changes
