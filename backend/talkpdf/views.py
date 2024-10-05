@@ -1,162 +1,190 @@
-from django.contrib.messages.context_processors import messages
-from django.core.serializers import serialize
-from django.shortcuts import render
-from django.http import HttpResponse, JsonResponse
-
+"""
+import os
+import uuid
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import MessageTalkPdf
-from .serializers import MessageTalkPdfSerializer
-
+from langchain_core.messages import HumanMessage
+from langgraph.graph import START, MessagesState, StateGraph
+from langchain_openai import ChatOpenAI
+from .checkpointer import DjangoSaver
 from dotenv import load_dotenv, find_dotenv
-from openai import OpenAI
-import os
 
-from PyPDF2 import PdfReader
-from langchain.text_splitter import CharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_community.vectorstores import FAISS
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationalRetrievalChain
-from rest_framework.parsers import MultiPartParser
-
-# carrega o meu arquivo .env, que contem minha chave openai
 load_dotenv(find_dotenv())
 
-# função simples para teste, neste, com um prompt já pré-determinado, gero um mensagem da api da openai
-def curiosidade_da_openai(input) -> str:
-
-    client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
-
-    input = str(input)
-
-    curiosidade = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "Você é um assistente que fala português e é muito curioso."},
-            {"role": "user", "content": input},
-        ]
-    )
-
-    curiosidade = dict(curiosidade.choices[0].message)
-
-    return curiosidade['content']
-
-# Create your views here. View para teste
-def index(request):
-
-    client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
-
-    curiosidade = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "Você é um assistente que fala português e é muito curioso."},
-            {"role": "user", "content": "Me fala uma curiosidade aleatória sobre história."},
-        ]
-    )
-
-    curiosidade = dict(curiosidade.choices[0].message)
-
-    return HttpResponse(curiosidade['content'])
-
-# Classe para uma api simples, com o objetivo de retornar uma mensagem da função curiosidade_da_openai
-class MessageTalkPdfView(APIView):
-
-    # neste metodo, e obtido nossa mensage, o metodo get retorna todos os dados quando requisitado
-    def get(self, request, *args, **kwargs):
-
-        """# essa variavel é responsável por criar uma mensagem no nosso objeto
-        new_message = MessageTalkPdf.objects.create(
-            message = curiosidade_da_openai(),
-            created_at = timezone.now()
-        )"""
-
-        # query para retornar todas os dados do nosso metodo
-        messages = MessageTalkPdf.objects.all()
-
-        # o serializers serve para padronizar os dados dos nosso objetos, ele os transforma em json
-        serializers = MessageTalkPdfSerializer(messages, many=True)
-
-        # aqui é retornado o resultado da nossa consulta
-        return Response({'status': 'success', "MessageTalkPdf": serializers.data}, status=200)
-
+class PDFProcessView(APIView):
     def post(self, request, *args, **kwargs):
-        user_input = request.data.get('text', '')  # Recebe o texto do usuário
+        question = request.data.get("question")
+        thread_id = request.data.get("thread_id", "123")  # Usar 123 como padrão se não for passado
 
-        # Lógica para gerar uma resposta com base na entrada do usuário
-        if user_input == '':
-            response_message = curiosidade_da_openai('Me manda uma mensagem de motivação, por favor.')
-        else:
-            response_message = curiosidade_da_openai(user_input)
+        # Verificar se a pergunta foi fornecida
+        if not question:
+            return Response({"error": "A pergunta é necessária"}, status=status.HTTP_400_BAD_REQUEST)
 
-        print('Texto recebido:', user_input)
+        # Criar uma instância do DjangoSaver para checkpoints
+        checkpointer = DjangoSaver()
 
-        # Cria um dicionário com os dados que serão validados pelo serializer
-        message_data = {
-            'message': response_message,
+        # Definir um novo grafo
+        workflow = StateGraph(state_schema=MessagesState)
+
+        # Modelo de chat
+        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
+
+        def call_model(state: MessagesState):
+            print("Estado antes da chamada ao modelo:", state)
+            query = state["messages"][-1].content  # Pegue a última mensagem do usuário
+            print("Última pergunta:", query)
+
+            print(str(state["messages"]))
+
+            response = model.invoke(state["messages"])  # Chama o modelo
+            # print("Resposta do modelo:", response)
+            return {"messages": response}
+
+        # Definir os nós no grafo
+        workflow.add_edge(START, "model")
+        workflow.add_node("model", lambda state: call_model(state))
+
+        config = {"configurable": {"thread_id": thread_id}}
+
+        # Compilando o app
+        app = workflow.compile(checkpointer=checkpointer)
+
+        # Criar a mensagem de entrada
+        input_message = HumanMessage(content=question)
+        events = []
+
+        # Executar o fluxo de conversa
+        for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
+            events.append(event)
+
+        # Retornar o último estado do chat e o UUID do thread
+        response = {
+            "thread_id": thread_id,
+            "last_message": events[-1]["messages"][-1].content if events else "Sem resposta disponível"
         }
 
-        # Usa o serializer para criar a nova mensagem
-        serializer = MessageTalkPdfSerializer(data=message_data)
+        return Response(response, status=status.HTTP_200_OK)
+"""
 
-        if serializer.is_valid():
-            serializer.save()  # Salva a nova mensagem no banco de dados
-            return Response({'status': 'success', 'message': response_message}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# LÓGICA DO SISTEMA AQUI, COMENTADO PARA SER FEITO MAIS TESTES
+
+import os
+import uuid
+from django.http import HttpResponse, JsonResponse
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from langchain_core.messages import HumanMessage
+from langchain.text_splitter import CharacterTextSplitter
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import START, MessagesState, StateGraph
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from PyPDF2 import PdfReader
+from langchain_community.vectorstores import FAISS
+from .checkpointer import DjangoSaver
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
+
+def extract_text_from_pdf(pdf_docs):
+    text = ""
+    for pdf in pdf_docs:
+        pdf_reader = PdfReader(pdf)
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+    return text
+
+def get_text_chunks(text):
+    text_splitter = CharacterTextSplitter(
+        separator="\n",
+        chunk_size=1024,
+        chunk_overlap=256,
+        length_function=len
+    )
+    chunks = text_splitter.split_text(text)
+    return chunks
+
+def get_vectorstore(text_chunks):
+    embeddings = OpenAIEmbeddings()
+    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+    return vectorstore
+
 
 class PDFProcessView(APIView):
-    parser_classes = [MultiPartParser]
-
-    def get_pdf_text(self, pdf_docs):
-        text = ""
-        for pdf in pdf_docs:
-            pdf_reader = PdfReader(pdf)
-            for page in pdf_reader.pages:
-                text += page.extract_text()
-        return text
-
-    def get_text_chunks(self, text):
-        text_splitter = CharacterTextSplitter(
-            separator="\n",
-            chunk_size=512,
-            chunk_overlap=200,
-            length_function=len
-        )
-        chunks = text_splitter.split_text(text)
-        return chunks
-
-    def get_vectorstore(self, text_chunks):
-        embeddings = OpenAIEmbeddings()
-        vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
-        return vectorstore
-
-    def get_conversation_chain(self, vectorstore):
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
-        memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
-        conversation_chain = ConversationalRetrievalChain.from_llm(
-            llm=llm,
-            retriever=vectorstore.as_retriever(),
-            memory=memory
-        )
-        return conversation_chain
-
     def post(self, request, *args, **kwargs):
-        pdf_files = request.FILES.getlist('pdfs')
-        question = request.data.get('question', '')
+        # os arquivos que iria receber
+        pdf = request.FILES.getlist("pdfs")
+        question = request.data.get("question")
+        thread_id = request.data.get("thread_id", 123)  # Usar 123 como padrão se não for passado
 
-        # Extrai texto dos PDFs
-        raw_text = self.get_pdf_text(pdf_files)
-        text_chunks = self.get_text_chunks(raw_text)
+        # Verificar se o PDF e a pergunta foram fornecidos
+        if not pdf or not question:
+            return Response({"error": "PDF e pergunta são necessários"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Cria o vectorstore
-        vectorstore = self.get_vectorstore(text_chunks)
+        # Criar uma instância do DjangoSaver para checkpoints
+        checkpointer = DjangoSaver()
 
-        # Gera resposta com o modelo
-        conversation_chain = self.get_conversation_chain(vectorstore)
-        raw_answer = conversation_chain({'question': question})
-        answer = raw_answer['chat_history'][-1].content
-        print(answer)
-        print(pdf_files)
-        # Retorna a resposta em JSON
+        # Definir um novo grafo
+        workflow = StateGraph(state_schema=MessagesState)
+
+        # Modelo de chat
+        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+
+        def call_model(state: MessagesState, vectorstore):
+            retriever = vectorstore.as_retriever()
+            retrieved_docs = retriever.invoke(state["messages"][-1].content, top_k=10)
+
+            # Concatene os resultados dos documentos recuperados
+            pdf_response = "\n".join([doc.page_content for doc in retrieved_docs])
+
+            print(pdf_response)
+
+            input_user = state["messages"] + [HumanMessage(content=pdf_response)]
+
+            prompt = [
+                (
+                    "system",
+                    "Você é um assistente muito útil na leitura de documento, auxiliando o usuário em dúvidas sobre documentos, fornecendo resumos sobre documentos e sugerindo idéias, quando solicitado."
+                ),
+                (
+                    "human",
+                    str(input_user)
+                )
+            ]
+
+            #print("O que é mandado: " + prompt)
+
+            # Chama o modelo passando todas as mensagens do estado
+            response = model.invoke(prompt)
+
+            return {"messages": response}
+
+        # Definir os nós no grafo
+        workflow.add_edge(START, "model")
+        workflow.add_node("model", lambda state: call_model(state, vectorstore))  # Passar o vectorstore dentro da função
+
+        config = {"configurable": {"thread_id": thread_id}}
+
+        app = workflow.compile(checkpointer=checkpointer)
+
+        # Extraindo e processando o PDF
+        curriculos = extract_text_from_pdf(pdf)
+        chucks = get_text_chunks(curriculos)
+        vectorstore = get_vectorstore(chucks)
+
+        # Criar a mensagem de entrada
+        input_message = HumanMessage(content=question)
+        events = []
+
+        # Executar o fluxo de conversa
+        for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
+            events.append(event)
+
+        # Retornar o último estado do chat e o UUID do thread
+        answer = {
+            "thread_id": thread_id,
+            "last_message": events[-1]["messages"][-1].content if events else "Sem resposta disponível"
+        }
+
         return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)

@@ -26,7 +26,7 @@ function App() {
     })
       .then(response => response.json())
       .then(data => {
-        setResponse(data.answer);
+        setResponse(data.answer.last_message); // Acessando a mensagem correta
         setLoading(false);
       })
       .catch(error => {
@@ -51,7 +51,9 @@ function App() {
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="Digite sua pergunta"
         />
-        <button type="submit">Enviar</button>
+        <button type="submit" disabled={loading}>
+          {loading ? 'Enviando...' : 'Enviar'}
+        </button>
       </form>
       {loading && <p>Processando...</p>}
       {response && (
