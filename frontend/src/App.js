@@ -7,6 +7,7 @@ const App = () => {
     const [newChatName, setNewChatName] = useState(''); // Estado para armazenar o nome do novo chat
     const [pdfFile, setPdfFile] = useState(null); // Estado para armazenar o arquivo PDF
     const [question, setQuestion] = useState(''); // Estado para armazenar a pergunta
+    const [chatInput, setChatInput] = useState(''); // Estado para armazenar a mensagem do chat
 
     // Função para listar todos os chats ao carregar a página
     useEffect(() => {
@@ -15,8 +16,9 @@ const App = () => {
 
     const fetchChats = async () => {
         try {
-            const response = await axios.get('http://localhost:8000/talkpdf/message/');
-            setChats(response.data.chats);
+            const response = await axios.get('http://localhost:8000/api/message/');
+            console.log('Chats recebidos:', response.data.chats); // Verifique a estrutura da resposta
+            setChats(response.data.chats); // Atualiza o estado com os chats recebidos
         } catch (error) {
             console.error('Erro ao buscar chats:', error);
         }
@@ -30,12 +32,12 @@ const App = () => {
             formData.append('question', question);
 
             try {
-                const response = await axios.post('http://localhost:8000/talkpdf/message/', formData, {
+                const response = await axios.post('http://localhost:8000/api/message/', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
                     },
                 });
-                setChats([...chats, { id: response.data.answer.thread_id, name: newChatName }]);
+                setChats([...chats, { thread_id: response.data.answer.thread_id }]);
                 setNewChatName('');
                 setPdfFile(null);
                 setQuestion('');
@@ -47,26 +49,44 @@ const App = () => {
         }
     };
 
-    // Função para selecionar um chat
-    const selectChat = (chat) => {
-        setSelectedChat(chat);
+    // Função para selecionar um chat e buscar as mensagens do backend
+    const selectChat = async (chatId) => {
+        try {
+            const response = await axios.get(`http://localhost:8000/api/message/?thread_id=${chatId}`, {
+                headers: { 'Content-Type': 'application/json' }
+            });
+            console.log('Chat selecionado:', response.data); // Verifique a estrutura do chat selecionado
+            setSelectedChat(response.data.chat); // Assume que o primeiro elemento do array é o chat com mensagens
+            setChatInput(''); // Limpa o input do chat ao selecionar um chat
+        } catch (error) {
+            console.error('Erro ao buscar chat:', error);
+        }
     };
 
     // Função para deletar um chat
     const deleteChat = async (chatId) => {
-    try {
-        await axios.delete('http://localhost:8000/talkpdf/message/', {
-            headers: { 'Content-Type': 'application/json' },
-            data: { thread_id: chatId }
-        });
-        console.log(chatId)
-        setChats(chats.filter((chat) => chat.id !== chatId));
-        setSelectedChat(null);
-    } catch (error) {
-        console.log(chatId)
-        console.error('Erro ao deletar chat:', error);
-    }
-};
+        try {
+            await axios.delete('http://localhost:8000/api/message/', {
+                headers: { 'Content-Type': 'application/json' },
+                data: { thread_id: chatId }
+            });
+            setChats(chats.filter((chat) => chat.thread_id !== chatId));
+            setSelectedChat(null);
+        } catch (error) {
+            console.error('Erro ao deletar chat:', error);
+        }
+    };
+
+    // Função para enviar mensagem no chat
+    const sendMessage = async () => {
+        if (chatInput.trim()) {
+            // Aqui você pode adicionar a lógica para enviar a mensagem ao backend
+            console.log(`Mensagem enviada: ${chatInput}`);
+            setChatInput(''); // Limpa o input após enviar
+        } else {
+            alert('Por favor, digite uma mensagem.');
+        }
+    };
 
     return (
         <div style={{ display: 'flex', height: '100vh' }}>
@@ -93,20 +113,157 @@ const App = () => {
 
                 <ul>
                     {chats.map((chat) => (
-                        <li key={chat.thread_id} style={{cursor: 'pointer'}}>
-                            <span onClick={() => selectChat(chat)}>{`Chat - ${chat.thread_id}`}</span>
+                        <li key={chat.thread_id} style={{ cursor: 'pointer' }}>
+                            <span onClick={() => selectChat(chat.thread_id)}>{`Chat - ${chat.thread_id}`}</span>
                             <button onClick={() => deleteChat(chat.thread_id)}>Apagar</button>
                         </li>
                     ))}
                 </ul>
             </div>
-            <div style={{flex: 1, padding: '10px'}}>
+            <div style={{ flex: 1, padding: '10px' }}>
                 {selectedChat ? (
                     <div>
-                        <h2>{selectedChat.name}</h2>
+                        <h2>{`Chat - ${selectedChat[0].thread_id}`}</h2>
                         <ul>
-                            {selectedChat.messages?.map((msg, index) => (
-                                <li key={index}>{msg}</li>
+                            {selectedChat.map((msg, index) => (
+                                <li key={index}>{msg.content ? msg.content : "Sem conteúdo para mostrar."}</li>
+                            ))}
+                        </ul>
+                        <input
+                            type="text"
+                            value={chatInput}
+                            onChange={(e) => setChatInput(e.target.value)}
+                            placeholder="Digite sua mensagem..."
+                        />
+                        <button onClick={sendMessage}>Enviar</button>
+                    </div>
+                ) : (
+                    <div>
+                        <h2>Selecione um chat</h2>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default App;
+
+/*import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const App = () => {
+    const [chats, setChats] = useState([]); // Estado para armazenar chats
+    const [selectedChat, setSelectedChat] = useState(null); // Estado para armazenar chat selecionado
+    const [newChatName, setNewChatName] = useState(''); // Estado para armazenar o nome do novo chat
+    const [pdfFile, setPdfFile] = useState(null); // Estado para armazenar o arquivo PDF
+    const [question, setQuestion] = useState(''); // Estado para armazenar a pergunta
+
+    // Função para listar todos os chats ao carregar a página
+    useEffect(() => {
+        fetchChats();
+    }, []);
+
+    const fetchChats = async () => {
+        try {
+            const response = await axios.get('http://localhost:8000/api/message/');
+            setChats(response.data.chats);
+        } catch (error) {
+            console.error('Erro ao buscar chats:', error);
+        }
+    };
+
+    // Função para criar um novo chat com um PDF e uma pergunta
+    const createChat = async () => {
+        if (pdfFile && question) {
+            const formData = new FormData();
+            formData.append('pdfs', pdfFile);
+            formData.append('question', question);
+
+            try {
+                const response = await axios.post('http://localhost:8000/api/message/', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                });
+                setChats([...chats, { thread_id: response.data.answer.thread_id }]);
+                setNewChatName('');
+                setPdfFile(null);
+                setQuestion('');
+            } catch (error) {
+                console.error('Erro ao criar chat:', error);
+            }
+        } else {
+            alert('Por favor, envie um PDF e faça uma pergunta.');
+        }
+    };
+
+    // Função para selecionar um chat e buscar as mensagens do backend
+    const selectChat = async (chatId) => {
+        try {
+            const response = await axios.get(`http://localhost:8000/api/message/?thread_id=${chatId}`, {
+                headers: { 'Content-Type': 'application/json' }
+            });
+            console.log(response.data);
+            setSelectedChat(response.data.chat); // Aqui, assumindo que você está retornando um array de mensagens
+        } catch (error) {
+            console.error('Erro ao buscar chat:', error);
+        }
+    };
+
+    // Função para deletar um chat
+    const deleteChat = async (chatId) => {
+        try {
+            await axios.delete('http://localhost:8000/api/message/', {
+                headers: { 'Content-Type': 'application/json' },
+                data: { thread_id: chatId }
+            });
+            setChats(chats.filter((chat) => chat.thread_id !== chatId));
+            setSelectedChat(null);
+        } catch (error) {
+            console.error('Erro ao deletar chat:', error);
+        }
+    };
+
+    return (
+        <div style={{ display: 'flex', height: '100vh' }}>
+            <div style={{ width: '30%', borderRight: '1px solid #ccc', padding: '10px' }}>
+                <h2>Chats</h2>
+                <input
+                    type="text"
+                    value={newChatName}
+                    onChange={(e) => setNewChatName(e.target.value)}
+                    placeholder="Nome do novo chat"
+                />
+                <input
+                    type="file"
+                    onChange={(e) => setPdfFile(e.target.files[0])}
+                    accept="application/pdf"
+                />
+                <input
+                    type="text"
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder="Faça uma pergunta sobre o PDF"
+                />
+                <button onClick={createChat}>Criar Chat</button>
+
+                <ul>
+                    {chats.map((chat) => (
+                        <li key={chat.thread_id} style={{ cursor: 'pointer' }}>
+                            <span onClick={() => selectChat(chat.thread_id)}>{`Chat - ${chat.thread_id}`}</span>
+                            <button onClick={() => deleteChat(chat.thread_id)}>Apagar</button>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+            <div style={{ flex: 1, padding: '10px' }}>
+                {selectedChat ? (
+                    <div>
+                        <h2>{`Chat - ${selectedChat[0].thread_id}`}</h2>
+                        <ul>
+                            {selectedChat.map((msg, index) => (
+                                <li key={index}>{msg.content ? msg.content : "Sem conteúdo para mostrar."}</li>
                             ))}
                         </ul>
                     </div>
@@ -121,6 +278,9 @@ const App = () => {
 };
 
 export default App;
+*/
+
+
 
 /*
 import React, { useState } from 'react';
