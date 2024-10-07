@@ -77,13 +77,13 @@ from rest_framework.response import Response
 from rest_framework import status
 from langchain_core.messages import HumanMessage
 from langchain.text_splitter import CharacterTextSplitter
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, MessagesState, StateGraph
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from PyPDF2 import PdfReader
 from langchain_community.vectorstores import FAISS
 from .checkpointer import DjangoSaver
 from dotenv import load_dotenv, find_dotenv
+from .models import DjCheckpoint, DjWrite
 
 load_dotenv(find_dotenv())
 
@@ -110,13 +110,31 @@ def get_vectorstore(text_chunks):
     vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
-
 class PDFProcessView(APIView):
+    def get(self, request, *args, **kwargs):
+        """Listar todos os chats ou filtrar por thread_id."""
+        thread_id = request.query_params.get("thread_id")
+
+        try:
+            if thread_id:
+                # Filtrar pelo thread_id específico
+                chats = DjCheckpoint.objects.filter(thread_id=thread_id).values('thread_id').distinct()
+            else:
+                # Listar todos os chats com thread_id distintos
+                chats = DjCheckpoint.objects.values('thread_id').distinct()
+                print(chats)
+
+            # Retornar apenas os thread_ids distintos
+            chat_list = [{"thread_id": chat["thread_id"]} for chat in chats]
+            return JsonResponse({"status": "success", "chats": chat_list}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     def post(self, request, *args, **kwargs):
         # os arquivos que iria receber
         pdf = request.FILES.getlist("pdfs")
         question = request.data.get("question")
-        thread_id = request.data.get("thread_id", 123)  # Usar 123 como padrão se não for passado
+        thread_id = request.data.get("thread_id", str(uuid.uuid4()))  # Usar 123 como padrão se não for passado
 
         # Verificar se o PDF e a pergunta foram fornecidos
         if not pdf or not question:
@@ -129,27 +147,30 @@ class PDFProcessView(APIView):
         workflow = StateGraph(state_schema=MessagesState)
 
         # Modelo de chat
-        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 
         def call_model(state: MessagesState, vectorstore):
             retriever = vectorstore.as_retriever()
-            retrieved_docs = retriever.invoke(state["messages"][-1].content, top_k=10)
+            retrieved_docs = retriever.invoke(state["messages"][-1].content)
 
-            # Concatene os resultados dos documentos recuperados
-            pdf_response = "\n".join([doc.page_content for doc in retrieved_docs])
+            # Ordena os documentos pela ordem de inserção, assumindo que eles têm um campo 'insertion_order'
+            sorted_docs = sorted(retrieved_docs, key=lambda doc: doc.metadata.get('insertion_order', 0))
 
-            print(pdf_response)
+            # Concatene os resultados dos documentos recuperados em ordem
+            pdf_response = "\n".join([doc.page_content for doc in sorted_docs])
+
+            #print(pdf_response)
 
             input_user = state["messages"] + [HumanMessage(content=pdf_response)]
 
             prompt = [
                 (
                     "system",
-                    "Você é um assistente muito útil na leitura de documento, auxiliando o usuário em dúvidas sobre documentos, fornecendo resumos sobre documentos e sugerindo idéias, quando solicitado."
+                    "Você é um assistente especializado em leitura de documentos PDF. Responda às perguntas do usuário de forma clara, concisa e relevante, limitando a resposta aos pontos mais importantes."
                 ),
                 (
                     "human",
-                    str(input_user)
+                    f"Pergunta: {question}\n\nAqui está um trecho do documento:\n\n{input_user}\n\nPor favor, responda à pergunta com base no documento de forma direta."
                 )
             ]
 
@@ -163,6 +184,8 @@ class PDFProcessView(APIView):
         # Definir os nós no grafo
         workflow.add_edge(START, "model")
         workflow.add_node("model", lambda state: call_model(state, vectorstore))  # Passar o vectorstore dentro da função
+
+        print(thread_id)
 
         config = {"configurable": {"thread_id": thread_id}}
 
@@ -181,7 +204,7 @@ class PDFProcessView(APIView):
         for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
             events.append(event)
 
-<<<<<<< Updated upstream
+
         # Retornar o último estado do chat e o UUID do thread
         answer = {
             "thread_id": thread_id,
@@ -189,62 +212,20 @@ class PDFProcessView(APIView):
         }
 
         return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)
-=======
-class PDFProcessView(APIView):
-    parser_classes = [MultiPartParser]
 
-    def get_pdf_text(self, pdf_docs):
-        text = ""
-        for pdf in pdf_docs:
-            pdf_reader = PdfReader(pdf)
-            for page in pdf_reader.pages:
-                text += page.extract_text()
-        return text
+    def delete(self, request, *args, **kwargs):
+        """Apagar um chat baseado no thread_id."""
+        thread_id = request.data.get("thread_id")
 
-    def get_text_chunks(self, text):
-        text_splitter = CharacterTextSplitter(
-            separator="\n",
-            chunk_size=512,
-            chunk_overlap=200,
-            length_function=len
-        )
-        chunks = text_splitter.split_text(text)
-        return chunks
+        if not thread_id:
+            return JsonResponse({"status": "error", "message": "O thread_id é necessário para apagar um chat"},
+                                status=status.HTTP_400_BAD_REQUEST)
 
-    def get_vectorstore(self, text_chunks):
-        embeddings = OpenAIEmbeddings()
-        vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
-        return vectorstore
-
-    def get_conversation_chain(self, vectorstore, question):
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
-        memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
-        conversation_chain = ConversationalRetrievalChain.from_llm(
-            llm=llm,
-            retriever=vectorstore.as_retriever(),
-            memory=memory
-        )
-        retriver = vectorstore.as_retriever().get_relevant_documents(question)
-        print(retriver)
-        return conversation_chain
-
-    def post(self, request, *args, **kwargs):
-        pdf_files = request.FILES.getlist('pdfs')
-        question = request.data.get('question', '')
-
-        # Extrai texto dos PDFs
-        raw_text = self.get_pdf_text(pdf_files)
-        text_chunks = self.get_text_chunks(raw_text)
-
-        # Cria o vectorstore
-        vectorstore = self.get_vectorstore(text_chunks)
-
-        # Gera resposta com o modelo
-        conversation_chain = self.get_conversation_chain(vectorstore, question)
-        raw_answer = conversation_chain({'question': question})
-        answer = raw_answer['chat_history'][-1].content
-        print(answer)
-        print(pdf_files)
-        # Retorna a resposta em JSON
-        return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)
->>>>>>> Stashed changes
+        try:
+            # Buscar o chat no banco de dados
+            chat = DjCheckpoint.objects.filter(thread_id=thread_id)
+            chat.delete()  # Apagar o chat
+            return JsonResponse({"status": "success", "message": f"Chat {thread_id} apagado com sucesso"},
+                                status=status.HTTP_200_OK)
+        except DjCheckpoint.DoesNotExist:
+            return JsonResponse({"status": "error", "message": "Chat não encontrado"}, status=status.HTTP_404_NOT_FOUND)
