@@ -78,15 +78,38 @@ const App = () => {
     };
 
     // Função para enviar mensagem no chat
-    const sendMessage = async () => {
-        if (chatInput.trim()) {
-            // Aqui você pode adicionar a lógica para enviar a mensagem ao backend
-            console.log(`Mensagem enviada: ${chatInput}`);
-            setChatInput(''); // Limpa o input após enviar
+    const sendMessage = async (pdfFiles) => {
+    if (chatInput.trim()) {
+        const formData = new FormData();
+        formData.append('question', chatInput);
+        formData.append('thread_id', selectedChat.thread_id); // ID do chat
+        pdfFiles.forEach((pdf, index) => formData.append(`pdfs`, pdf)); // Adiciona os PDFs
+
+        try {
+            const response = await axios.post('http://localhost:8000/api/message/', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            if (response.data.status === 'success') {
+                const { last_message } = response.data.answer;
+                setSelectedChat((prevChat) => ({
+                    ...prevChat,
+                    messages: [...prevChat.messages, last_message],
+                }));
+
+                setChatInput(''); // Limpa o input
+            }
+        } catch (error) {
+            console.error('Erro ao enviar a mensagem:', error);
+            alert('Ocorreu um erro ao enviar a mensagem. Tente novamente.');
+            }
         } else {
             alert('Por favor, digite uma mensagem.');
         }
     };
+
 
     return (
         <div style={{ display: 'flex', height: '100vh' }}>

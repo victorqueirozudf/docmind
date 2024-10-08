@@ -13,8 +13,18 @@ class DocumentsVectors(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 """
 
+class ChatDetails(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4,
+                          editable=False)  # Define 'id' como chave primária com UUID automático
+    thread_id = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    path = models.TextField()
+    chatName = models.TextField()
+
 # Classe do meu salvador de estados
 class DjCheckpoint(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4,
+                          editable=False)  # Define 'id' como chave primária com UUID automático
     thread_id = models.TextField()
     thread_ts = models.TextField()
     parent_ts = models.TextField(null=True, blank=True, default=None)
@@ -26,6 +36,8 @@ class DjCheckpoint(models.Model):
 
 # Classe do meu salvador de estados
 class DjWrite(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4,
+                          editable=False)  # Define 'id' como chave primária com UUID automático
     thread_id = models.TextField()
     thread_ts = models.TextField()
     task_id = models.TextField()
