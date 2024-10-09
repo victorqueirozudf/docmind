@@ -69,7 +69,7 @@ class PDFProcessView(APIView):
 
 # LÓGICA DO SISTEMA AQUI, COMENTADO PARA SER FEITO MAIS TESTES
 
-#https://blog.logrocket.com/django-rest-framework-create-api/
+# https://blog.logrocket.com/django-rest-framework-create-api/
 
 import os
 import json
@@ -158,16 +158,23 @@ class PDFProcessView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
+        data = {
+            'thread_id': request.data.get('thread_id'),
+
+        }
+
+class PDFProcessDetailView(APIView):
+    def post(self, request, *args, **kwargs):
         # Receber os arquivos PDF e a pergunta
-        pdfs = request.FILES.getlist("pdfs")
+        pdfs = request.FILES.getlist("pdfs") # alterar para pegar o caminho, por enquanto
         question = request.data.get("question")
-        thread_id = request.data.get("thread_id", str(uuid.uuid4()))  # Usar UUID se não for passado
+        thread_id = request.data.get("thread_id")
 
         print(f'Thread ID: {thread_id}')
         print(f'Pergunta: {question}')
 
-        if not pdfs or not question:
-            return Response({"error": "PDF e pergunta são necessários"}, status=status.HTTP_400_BAD_REQUEST)
+        if not pdfs or not question or not thread_id:
+            return Response({"error": "PDF, pergunta ou id é necessário são necessários"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Criar uma instância do DjangoSaver para checkpoints
         checkpointer = DjangoSaver()
@@ -177,8 +184,7 @@ class PDFProcessView(APIView):
 
         # Definir os nós no grafo
         workflow.add_edge(START, "model")
-        workflow.add_node("model", lambda state: call_model(state, vectorstore,
-                                                            question))  # Passar o vectorstore dentro da função
+        workflow.add_node("model", lambda state: call_model(state, vectorstore, question))  # Passar o vectorstore dentro da função
 
         config = {"configurable": {"thread_id": thread_id}}
 
