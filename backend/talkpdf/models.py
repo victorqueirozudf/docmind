@@ -28,8 +28,8 @@ class ChatDetails(models.Model):
 
 # Modelo para salvar os checkpoints, com relação ao ChatDetails (Foreign Key)
 class DjCheckpoint(models.Model):
-    # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # Chave primária com UUID
-    thread_id = models.ForeignKey(ChatDetails, on_delete=models.CASCADE, to_field='thread_id')  # ForeignKey para ChatDetails
+    #thread_id = models.ForeignKey(ChatDetails, on_delete=models.CASCADE, to_field='thread_id')  # ForeignKey para ChatDetails
+    thread_id = models.TextField()
     thread_ts = models.TextField()  # Timestamp da thread
     parent_ts = models.TextField(null=True, blank=True, default=None)  # Timestamp do pai, opcional
     checkpoint = models.BinaryField()  # Dados binários do checkpoint
@@ -41,8 +41,6 @@ class DjCheckpoint(models.Model):
 
 # Classe do meu salvador de estados
 class DjWrite(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4,
-                          editable=False)  # Define 'id' como chave primária com UUID automático
     thread_id = models.TextField()
     thread_ts = models.TextField()
     task_id = models.TextField()

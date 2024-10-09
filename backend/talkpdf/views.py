@@ -89,9 +89,10 @@ from dotenv import load_dotenv, find_dotenv
 from .models import DjCheckpoint, DjWrite, ChatDetails
 from .serializers import DjCheckpointSerializer, ChatDetailSerializer
 
+
 load_dotenv(find_dotenv())
 
-temp_pdf = f'C:\\docmind\\temp'
+temp_pdf = f'C:\\docmind\\temp\\'
 
 def extract_text_from_pdf(pdf_docs):
     text = ""
@@ -151,18 +152,126 @@ def call_model(state: MessagesState, vectorstore, question):
 
     return {"messages": response}
 
-class PDFProcessView(APIView):
+class PDFChatView(APIView):
     def get(self, request, *args, **kwargs):
+        """Listar todos os chats criados."""
         chats = ChatDetails.objects.all()
         serializer = ChatDetailSerializer(chats, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        data = {
-            'thread_id': request.data.get('thread_id'),
+        thread_id = uuid.uuid4()
+        chat_name = request.data.get('chatName')
+        pdf_file = request.FILES.get('pdfs')
 
+        if not pdf_file:
+            return Response({'error': 'Arquivo PDF é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Salva o arquivo no diretório desejado
+        path = temp_pdf + str(pdf_file.name)
+
+        # Verificar se o thread_id já existe
+        if ChatDetails.objects.filter(thread_id=thread_id).exists():
+            return Response(
+                {'error': 'Chat com este thread_id já existe.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Dados para criar o novo chat
+        data = {
+            'thread_id': thread_id,
+            'path': path,  # Salva o caminho absoluto do arquivo no servidor
+            'chatName': chat_name,
         }
 
+        serializer = ChatDetailSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class PDFChatDetailView(APIView):
+    def get(self, request, thread_id):
+        """
+        Retorna as mensagens associadas ao thread_id especificado.
+        """
+        try:
+            # Filtrar mensagens com base no thread_id
+            chat_messages = DjCheckpoint.objects.filter(thread_id=thread_id)
+            # Aqui, você pode converter as mensagens em um formato serializável
+            messages = [
+                {
+                    "metadata": message.metadata,
+                }
+                for message in chat_messages
+            ]
+
+           # print(messages)
+            return Response({"status": "success", "messages": messages}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def put(self, request, *args, **kwargs):
+        """
+        Atualiza ou cria uma nova entrada de chat.
+        """
+        pdfs = request.data.get('path_file')  # Altera para pegar o caminho
+        question = request.data.get("question")
+        thread_id = request.data.get("thread_id")
+
+       # print(f'Caminho PDF: {pdfs}')
+       # print(f'Thread ID: {thread_id}')
+       # print(f'Pergunta: {question}')
+
+        if not pdfs or not question or not thread_id:
+            return Response({"error": "PDF, pergunta ou thread_id são necessários"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if not os.path.exists(pdfs):
+            return Response({"error": "Arquivo PDF não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Criar uma instância do DjangoSaver para checkpoints
+        checkpointer = DjangoSaver()
+
+        # Definir um novo grafo
+        workflow = StateGraph(state_schema=MessagesState)
+
+        # Definir os nós no grafo
+        workflow.add_edge(START, "model")
+        workflow.add_node("model", lambda state: call_model(state, vectorstore,
+                                                            question))  # Passar o vectorstore dentro da função
+
+        config = {"configurable": {"thread_id": thread_id}}
+
+        app = workflow.compile(checkpointer=checkpointer)
+
+        pdfs = ['C:\\docmind\\temp\\Profile (3).pdf']
+       # print(pdfs)
+
+        # Extraindo e processando o PDF
+        files = extract_text_from_pdf(pdfs)
+        chunks = get_text_chunks(files)
+        vectorstore = get_vectorstore(chunks)
+
+        # Criar a mensagem de entrada
+        input_message = HumanMessage(content=question)
+        events = []
+
+        # Executar o fluxo de conversa
+        for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
+            events.append(event)
+
+        # Retornar o último estado do chat e o UUID do thread
+        answer = {
+            "thread_id": thread_id,
+            "last_message": events[-1]["messages"][-1].content if events else "Sem resposta disponível"
+        }
+
+        return Response({'status': 'success', 'answer': answer}, status=status.HTTP_200_OK)
+
+
+"""
 class PDFProcessDetailView(APIView):
     def post(self, request, *args, **kwargs):
         # Receber os arquivos PDF e a pergunta
@@ -212,7 +321,7 @@ class PDFProcessDetailView(APIView):
         return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)
 
     def delete(self, request, *args, **kwargs):
-        """Apagar um chat baseado no thread_id."""
+        # Apagar um chat baseado no thread_id.
         thread_id = request.data.get("thread_id")
 
         if not thread_id:
@@ -227,6 +336,7 @@ class PDFProcessDetailView(APIView):
                                 status=status.HTTP_200_OK)
         except DjCheckpoint.DoesNotExist:
             return JsonResponse({"status": "error", "message": "Chat não encontrado"}, status=status.HTTP_404_NOT_FOUND)
+"""
 
 """
 class PDFProcessView(APIView):
@@ -363,6 +473,7 @@ class PDFProcessView(APIView):
         except DjCheckpoint.DoesNotExist:
             return JsonResponse({"status": "error", "message": "Chat não encontrado"}, status=status.HTTP_404_NOT_FOUND)
 """
+
 class TelegramBotView(APIView):
     nome = None
 
