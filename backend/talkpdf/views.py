@@ -82,13 +82,12 @@ from langchain_core.messages import HumanMessage
 from langchain.text_splitter import CharacterTextSplitter
 from langgraph.graph import START, MessagesState, StateGraph
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from PyPDF2 import PdfReader
 from langchain_community.vectorstores import FAISS
+from PyPDF2 import PdfReader
 from .checkpointer import DjangoSaver
 from dotenv import load_dotenv, find_dotenv
-from .models import DjCheckpoint, DjWrite, ChatDetails
-from .serializers import DjCheckpointSerializer, ChatDetailSerializer
-
+from .models import DjCheckpoint, ChatDetails
+from .serializers import ChatDetailSerializer
 
 load_dotenv(find_dotenv())
 
@@ -207,7 +206,6 @@ class PDFChatDetailView(APIView):
                 for message in chat_messages
             ]
 
-           # print(messages)
             return Response({"status": "success", "messages": messages}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -220,9 +218,8 @@ class PDFChatDetailView(APIView):
         question = request.data.get("question")
         thread_id = request.data.get("thread_id")
 
-       # print(f'Caminho PDF: {pdfs}')
-       # print(f'Thread ID: {thread_id}')
-       # print(f'Pergunta: {question}')
+        pdf_path = [pdfs]
+        print(pdf_path)
 
         if not pdfs or not question or not thread_id:
             return Response({"error": "PDF, pergunta ou thread_id são necessários"},
@@ -246,11 +243,8 @@ class PDFChatDetailView(APIView):
 
         app = workflow.compile(checkpointer=checkpointer)
 
-        pdfs = ['C:\\docmind\\temp\\Profile (3).pdf']
-       # print(pdfs)
-
         # Extraindo e processando o PDF
-        files = extract_text_from_pdf(pdfs)
+        files = extract_text_from_pdf(pdf_path)
         chunks = get_text_chunks(files)
         vectorstore = get_vectorstore(chunks)
 
@@ -267,212 +261,11 @@ class PDFChatDetailView(APIView):
             "thread_id": thread_id,
             "last_message": events[-1]["messages"][-1].content if events else "Sem resposta disponível"
         }
+
+        values = app.get_state(config).values
+        print(values)
 
         return Response({'status': 'success', 'answer': answer}, status=status.HTTP_200_OK)
-
-
-"""
-class PDFProcessDetailView(APIView):
-    def post(self, request, *args, **kwargs):
-        # Receber os arquivos PDF e a pergunta
-        pdfs = request.FILES.getlist("pdfs") # alterar para pegar o caminho, por enquanto
-        question = request.data.get("question")
-        thread_id = request.data.get("thread_id")
-
-        print(f'Thread ID: {thread_id}')
-        print(f'Pergunta: {question}')
-
-        if not pdfs or not question or not thread_id:
-            return Response({"error": "PDF, pergunta ou id é necessário são necessários"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Criar uma instância do DjangoSaver para checkpoints
-        checkpointer = DjangoSaver()
-
-        # Definir um novo grafo
-        workflow = StateGraph(state_schema=MessagesState)
-
-        # Definir os nós no grafo
-        workflow.add_edge(START, "model")
-        workflow.add_node("model", lambda state: call_model(state, vectorstore, question))  # Passar o vectorstore dentro da função
-
-        config = {"configurable": {"thread_id": thread_id}}
-
-        app = workflow.compile(checkpointer=checkpointer)
-
-        # Extraindo e processando o PDF
-        files = extract_text_from_pdf(pdfs)
-        chunks = get_text_chunks(files)
-        vectorstore = get_vectorstore(chunks)
-
-        # Criar a mensagem de entrada
-        input_message = HumanMessage(content=question)
-        events = []
-
-        # Executar o fluxo de conversa
-        for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
-            events.append(event)
-
-        # Retornar o último estado do chat e o UUID do thread
-        answer = {
-            "thread_id": thread_id,
-            "last_message": events[-1]["messages"][-1].content if events else "Sem resposta disponível"
-        }
-
-        return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)
-
-    def delete(self, request, *args, **kwargs):
-        # Apagar um chat baseado no thread_id.
-        thread_id = request.data.get("thread_id")
-
-        if not thread_id:
-            return JsonResponse({"status": "error", "message": "O thread_id é necessário para apagar um chat"},
-                                status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # Buscar o chat no banco de dados
-            chat = DjCheckpoint.objects.filter(thread_id=thread_id)
-            chat.delete()  # Apagar o chat
-            return JsonResponse({"status": "success", "message": f"Chat {thread_id} apagado com sucesso"},
-                                status=status.HTTP_200_OK)
-        except DjCheckpoint.DoesNotExist:
-            return JsonResponse({"status": "error", "message": "Chat não encontrado"}, status=status.HTTP_404_NOT_FOUND)
-"""
-
-"""
-class PDFProcessView(APIView):
-    def get(self, request, *args, **kwargs):
-        #Listar todos os chats ou filtrar por thread_id.
-        thread_id = request.query_params.get("thread_id")
-
-        try:
-            if thread_id:
-                # Filtrar pelo thread_id específico e retornar as mensagens associadas
-                chats = DjCheckpoint.objects.filter(thread_id=thread_id).values('thread_id', 'metadata')
-                print("Filtrando por thread_id específico")
-                #print(chats)  # Verificando os chats retornados
-            else:
-                # Listar todos os chats com thread_id distintos
-                chats = DjCheckpoint.objects.values('thread_id').distinct()
-                print("Listando todos os thread_ids distintos")
-                #print(chats)
-
-            # Se thread_id for fornecido, retornar as mensagens
-            if thread_id:
-                chat_data = []
-                for chat in chats:
-                    # Convertendo metadata de string JSON para dicionário
-                    metadata = json.loads(chat['metadata'])
-
-                    # Tentando acessar o content dentro da estrutura JSON
-                    try:
-                        content = metadata['writes']['model']['messages']['kwargs']['content']
-                    except (KeyError, TypeError):
-                        content = None  # Caso o campo não exista ou a estrutura não esteja correta
-
-                    # Adicionando os dados formatados na lista
-                    chat_data.append({
-                        "thread_id": chat["thread_id"],
-                        "content": content
-                    })
-
-                print(chat_data)
-                return JsonResponse({"status": "success", "chat": chat_data}, status=status.HTTP_200_OK)
-            else:
-                # Retornar apenas os thread_ids distintos
-                chat_list = [{"thread_id": chat["thread_id"]} for chat in chats]
-                return JsonResponse({"status": "success", "chats": chat_list}, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            print(str(e))
-            return JsonResponse({"status": "error", "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    
-    def post(self, request, *args, **kwargs):
-        # Receber os arquivos PDF e a pergunta
-        pdfs = request.FILES.getlist("pdfs")
-        question = request.data.get("question")
-        thread_id = request.data.get("thread_id", str(uuid.uuid4()))  # Usar UUID se não for passado
-
-        print(f'Thread ID: {thread_id}')
-        print(f'Pergunta: {question}')
-
-        # Verificar se o PDF e a pergunta foram fornecidos
-        if not pdfs or not question:
-            return Response({"error": "PDF e pergunta são necessários"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Salvar os arquivos PDF no diretório temp_pdf
-        pdf_paths = []
-        for pdf in pdfs:
-            pdf_name = f"{pdf.name}"
-            pdf_path = os.path.join(temp_pdf, pdf_name)
-
-            # Salvar o PDF no diretório
-            with open(pdf_path, 'wb') as file:
-                for chunk in pdf.chunks():
-                    file.write(chunk)
-
-            pdf_paths.append(pdf_path)
-
-        # Criar uma entrada na tabela ChatDetails para armazenar o caminho e outras informações
-        for pdf_path in pdf_paths:
-            ChatDetails.objects.create(
-                id=DjCheckpoint.objects.get(thread_id=thread_id),
-                path=pdf_path,
-                chatName=f'Chat_{thread_id}'
-            )
-
-        # Criar uma instância do DjangoSaver para checkpoints
-        checkpointer = DjangoSaver()
-
-        # Definir um novo grafo
-        workflow = StateGraph(state_schema=MessagesState)
-
-        # Definir os nós no grafo
-        workflow.add_edge(START, "model")
-        workflow.add_node("model", lambda state: call_model(state, vectorstore,
-                                                            question))  # Passar o vectorstore dentro da função
-
-        config = {"configurable": {"thread_id": thread_id}}
-
-        app = workflow.compile(checkpointer=checkpointer)
-
-        # Extraindo e processando o PDF
-        files = extract_text_from_pdf(pdfs)
-        chunks = get_text_chunks(files)
-        vectorstore = get_vectorstore(chunks)
-
-        # Criar a mensagem de entrada
-        input_message = HumanMessage(content=question)
-        events = []
-
-        # Executar o fluxo de conversa
-        for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
-            events.append(event)
-
-        # Retornar o último estado do chat e o UUID do thread
-        answer = {
-            "thread_id": thread_id,
-            "last_message": events[-1]["messages"][-1].content if events else "Sem resposta disponível"
-        }
-
-        return JsonResponse({'status': 'success', 'answer': answer}, status=status.HTTP_201_CREATED)
-
-    def delete(self, request, *args, **kwargs):
-        # Apagar um chat baseado no thread_id.
-        thread_id = request.data.get("thread_id")
-
-        if not thread_id:
-            return JsonResponse({"status": "error", "message": "O thread_id é necessário para apagar um chat"},
-                                status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # Buscar o chat no banco de dados
-            chat = DjCheckpoint.objects.filter(thread_id=thread_id)
-            chat.delete()  # Apagar o chat
-            return JsonResponse({"status": "success", "message": f"Chat {thread_id} apagado com sucesso"},
-                                status=status.HTTP_200_OK)
-        except DjCheckpoint.DoesNotExist:
-            return JsonResponse({"status": "error", "message": "Chat não encontrado"}, status=status.HTTP_404_NOT_FOUND)
-"""
 
 class TelegramBotView(APIView):
     nome = None
