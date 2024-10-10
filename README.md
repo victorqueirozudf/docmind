@@ -4,7 +4,7 @@ O projeto DocMind é um aplicativo que permite que você converse com seus PDF, 
 
 ## Como executar
 
-Primeiramente, é necessário ter instalado no seu computador: Python, Node.js.
+Primeiramente, é necessário ter instalado no seu computador: Python V >= 3.10 , Node.js >= ADICIONAR_VERSAO.
 
 ## Como executar o Backend
 
