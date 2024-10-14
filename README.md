@@ -1,37 +1,84 @@
-# DOCMIND
+# 📄 **DocMind** 
 
-O projeto DocMind é um aplicativo que permite que você converse com seus PDF, aumentando, assim, sua produtividade em diversos tipos de trabalho. Ainda estamos em fase de desenvolvimento ;)
+O **DocMind** é um aplicativo que permite que você converse com seus arquivos PDF, aumentando sua produtividade em diversos tipos de trabalho! 🚀 Ainda estamos em fase de desenvolvimento 😉
 
-## Como executar
+---
 
-Primeiramente, é necessário ter instalado no seu computador: Python V >= 3.10 , Node.js >= ADICIONAR_VERSAO.
+## 🛠️ **Pré-requisitos**
 
-## Como executar o Backend
+Antes de começar, certifique-se de ter as seguintes ferramentas instaladas em sua máquina:
 
-Para executar o backend, é bem simples. Após baixar o nosso projeto, você vai na raíz. Na raíz, digite os seguintes comandos: **cd backend**
+- [Python](https://www.python.org/) >= 3.10 🐍
+- [Node.js](https://nodejs.org/) >= *ADICIONAR_VERSÃO* 🟢
 
-Para criar o ambiente virtual: **python -m venv venv**
+---
 
-Sempre que você for executar o aplicativo, é necessário executar esse comando para iniciar o ambiente virtual: **.\venv\Scripts\activate**
+## 🚀 **Como executar**
 
-Para desativar o ambiente virtual: **deactivate**
+### 🎯 **Backend**
 
-Com o ambiente virtual criado, vamos baixar as bibliotecas necessárias para nosso aplicativo e executar o nosso aplicativo
+1. Faça o *download* do repositório.
+2. Na raiz do projeto, navegue até o diretório do backend:
+   ```bash
+   cd backend
+   ```
+3. Crie um ambiente virtual:
+   ```bash
+   python -m venv venv
+   ```
+4. Ative o ambiente virtual:
+   - No Windows:
+     ```bash
+     .\venv\Scripts\activate
+     ```
+   - No macOS/Linux:
+     ```bash
+     source venv/bin/activate
+     ```
+5. Para desativar o ambiente virtual, use:
+   ```bash
+   deactivate
+   ```
+6. Com o ambiente virtual ativado, instale as dependências:
+   ```bash
+   pip install -r requirements.txt
+   ```
+7. Aplique as migrações do banco de dados:
+   ```bash
+   python manage.py makemigrations
+   python manage.py migrate
+   ```
+8. Agora, inicie o servidor:
+   ```bash
+   python manage.py runserver
+   ```
+9. Crie o arquivo `.env` na raiz do projeto e adicione sua chave da API da OpenAI:
+   ```plaintext
+   OPENAI_API_KEY = "sua_api"
+   ```
 
-***pip install -r requirements.txt***
+### 🌐 **Frontend**
 
-***python manage.py makemigrations***
+1. Na raiz do projeto, navegue até o diretório do *frontend*:
+   ```bash
+   cd frontend
+   ```
+2. Instale as dependências do *frontend*:
+   ```bash
+   npm install
+   ```
+3. Por fim, inicie o *frontend*:
+   ```bash
+   npm start
+   ```
 
-***python manage.py migrate***
+---
 
-***python manage.py runserver***
+## 💡 **Contribuição**
 
-Após executar esses comando, ainda na raíz, você vai criar um arquivo chamado **".env"**. Neste arquivo, você vai colocar a seguinte variável: ***OPENAI_API_KEY = "sua_api"***. É aqui onde vamos guardar nossa chave de segurança
+Sinta-se à vontade para contribuir! 🤝 Vamos construir o **DocMind** juntos para aumentar ainda mais a produtividade de todos!
 
-## Como executar o Frontend
+---
 
-Para executar o backend, é bem simples. Após baixar o nosso projeto, você vai na raíz. Na raíz, digite os seguintes comandos: **cd backend**
+Feito com 💙 pela equipe **DocMind**.
 
-Digite **npm install**
-
-Depois, digite **npm start**
