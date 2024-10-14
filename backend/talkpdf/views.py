@@ -9,20 +9,28 @@ from django.http import HttpResponse, JsonResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain.text_splitter import CharacterTextSplitter
 from langgraph.graph import START, MessagesState, StateGraph
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 from .checkpointer import DjangoSaver
 from dotenv import load_dotenv, find_dotenv
 from .models import DjCheckpoint, ChatDetails
 from .serializers import ChatDetailSerializer
+import tiktoken
+import pickle
 
 load_dotenv(find_dotenv())
 
 temp_pdf = f'C:\\docmind\\temp\\'
+
+def num_tokens_from_string(string: str) -> int:
+    # Returns the number of tokens in a text string.
+    encoding = tiktoken.encoding_for_model("gpt-4o-mini")
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
 def extract_text_from_pdf(pdf_docs):
     text = ""
@@ -47,6 +55,41 @@ def get_vectorstore(text_chunks):
     vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
+def load_vectorstore_from_file(thread_id, pdf):
+    filename = f"c:\\docmind\\temp\\{thread_id}\\index.pkl"
+
+    if os.path.exists(filename):
+        with open(filename, "rb") as file:
+            vectorstore = pickle.load(file)
+
+        return vectorstore
+    else:
+        load_vectorstore(thread_id, pdf)
+        load_vectorstore_from_file(thread_id, pdf)
+
+def load_vectorstore(thread_id, pdf_docs):
+    raw_text = extract_text_from_pdf(pdf_docs)
+    text_chunks = get_text_chunks(raw_text)
+    vectorstore = get_vectorstore(text_chunks)
+
+    folder_path = f"c:\\docmind\\temp\\{thread_id}\\"
+    file_path = os.path.join(folder_path, "index.pkl")
+
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
+    with open(file_path, "wb") as file:
+        pickle.dump(vectorstore, file)
+        print(f"Vetores salvos em {file_path}")
+
+    return vectorstore
+
+"""def get_vectorstore(text_chunks):
+    embeddings = OpenAIEmbeddings()
+    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+    vectorstore.save_local(f'C:\\docmind\\temp\\')
+    return vectorstore"""
+
 def call_model(state: MessagesState, vectorstore, question):
     # Modelo de chat
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
@@ -60,9 +103,12 @@ def call_model(state: MessagesState, vectorstore, question):
     # Concatene os resultados dos documentos recuperados em ordem
     pdf_response = "\n".join([doc.page_content for doc in sorted_docs])
 
-    # print(pdf_response)
+    memory = model.invoke(state["messages"])
+    #print(memory)
 
     input_user = state["messages"] + [HumanMessage(content=pdf_response)]
+
+    #print(f"Pergunta: {question}\n\nAqui está um trecho do documento:\n\n{input_user}\n\nPor favor, responda à pergunta com base no documento de forma direta.")
 
     prompt = [
         (
@@ -75,16 +121,32 @@ def call_model(state: MessagesState, vectorstore, question):
         )
     ]
 
+    print(prompt)
+
     # print("O que é mandado: " + prompt)
+
+    #print()
 
     # Chama o modelo passando todas as mensagens do estado
     response = model.invoke(prompt)
+
+    input_tokens = num_tokens_from_string(prompt[0][1]) + num_tokens_from_string(prompt[1][1])
+    output_tokens = num_tokens_from_string(response.content)
+
+    price_per_one_million = 0.150
+
+    print(f"""Total de tokens e valor total:\n
+            \nInput:{input_tokens} - US${(input_tokens * price_per_one_million)/1000000}\n
+            \nOutput:{output_tokens} - US${(output_tokens * price_per_one_million)/1000000}\n
+            \nTotal tokens:{input_tokens + output_tokens} - Total spent: US${((input_tokens + output_tokens) * price_per_one_million)/1000000}\n""")
 
     return {"messages": response}
 
 class PDFChatView(APIView):
     def get(self, request, *args, **kwargs):
-        """Listar todos os chats criados."""
+
+        # Listar todos os chats criados.
+
         chats = ChatDetails.objects.all()
         serializer = ChatDetailSerializer(chats, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -123,9 +185,9 @@ class PDFChatView(APIView):
 
 class PDFChatDetailView(APIView):
     def get(self, request, thread_id):
-        """
-        Retorna as mensagens associadas ao thread_id especificado.
-        """
+
+        # Retorna as mensagens associadas ao thread_id especificado.
+
         try:
             # Filtrar mensagens com base no thread_id
             chat_messages = DjCheckpoint.objects.filter(thread_id=thread_id)
@@ -168,7 +230,7 @@ class PDFChatDetailView(APIView):
         # Definir os nós no grafo
         workflow.add_edge(START, "model")
         workflow.add_node("model", lambda state: call_model(state, vectorstore,
-                                                            question))  # Passar o vectorstore dentro da função
+                                                            question))
 
         config = {"configurable": {"thread_id": thread_id}}
 
@@ -177,7 +239,7 @@ class PDFChatDetailView(APIView):
         # Extraindo e processando o PDF
         files = extract_text_from_pdf(pdf_path)
         chunks = get_text_chunks(files)
-        vectorstore = get_vectorstore(chunks)
+        vectorstore = load_vectorstore_from_file(thread_id, pdf_path)
 
         # Criar a mensagem de entrada
         input_message = HumanMessage(content=question)
@@ -194,12 +256,6 @@ class PDFChatDetailView(APIView):
         }
 
         values = app.get_state(config).values
-        print(values)
+        #print(values)
 
         return Response({'status': 'success', 'answer': answer}, status=status.HTTP_200_OK)
-
-class TelegramBotView(APIView):
-    nome = None
-
-class PDFExtractorView(APIView):
-    nome = None

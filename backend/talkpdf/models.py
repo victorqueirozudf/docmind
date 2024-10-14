@@ -38,7 +38,6 @@ class DjCheckpoint(models.Model):
     class Meta:
         unique_together = (("thread_id", "thread_ts"),)  # Garantir que a combinação de thread_id e thread_ts seja única
 
-
 # Classe do meu salvador de estados
 class DjWrite(models.Model):
     thread_id = models.TextField()
@@ -50,3 +49,16 @@ class DjWrite(models.Model):
 
     class Meta:
         unique_together = (("thread_id", "thread_ts", "task_id", "idx"),)
+
+"""
+class ChatCost(models.Model):
+    thread_id = models.TextField()
+    thread_ts = models.TextField()
+    input_tokens = models.IntegerField()
+    output_tokens = models.IntegerField()
+    model_cost = models.DecimalField()
+    total_cost = models.DecimalField()
+
+    class Meta:
+        unique_together = (("thread_id", "thread_ts"),)
+"""

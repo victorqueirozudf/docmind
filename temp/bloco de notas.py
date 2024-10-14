@@ -1,4 +1,26 @@
-import uuid
+from pypdf import PdfReader
+import tiktoken
+
+path = 'C:\\docmind\\temp\\datamining.pdf'
+
+load = PdfReader(path)
+
+text = ""
+
+for page in load.pages:
+    text += page.extract_text()
+
+def num_tokens_from_string(string: str) -> int:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.encoding_for_model("gpt-4o-mini")
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+numero = num_tokens_from_string(text)
+
+print((numero*0.150)/1000000)
+
+"""import uuid
 from langchain_core.messages import HumanMessage
 from langchain.text_splitter import CharacterTextSplitter
 from langgraph.checkpoint.memory import MemorySaver
@@ -112,7 +134,7 @@ while True:
         event["messages"][-1].pretty_print()
 
 
-"""import uuid
+import uuid
 
 # from IPython.display import Image, display
 from langchain_core.messages import HumanMessage
