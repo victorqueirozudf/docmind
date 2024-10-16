@@ -5,6 +5,8 @@ from langgraph.checkpoint.base import Checkpoint, CheckpointMetadata, Checkpoint
 
 from .models import DjCheckpoint, DjWrite
 
+#
+
 class DjangoSaver(BaseCheckpointSaver):
     def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         thread_id = config["configurable"]["thread_id"]
