@@ -24,7 +24,16 @@ import pickle
 
 load_dotenv(find_dotenv())
 
-temp_pdf = f'C:\\docmind\\temp\\'
+#temp_dir = "c:\\docmind\\temp"
+
+temp_dir = os.path.dirname(os.path.abspath(__file__))
+temp_dir = os.path.dirname(os.path.dirname(temp_dir))
+
+# Define o caminho para a pasta 'temp'
+temp_dir = os.path.join(temp_dir, 'temp')
+
+# Cria a pasta 'temp' se ela não existir
+os.makedirs(temp_dir, exist_ok=True)
 
 def num_tokens_from_string(string: str) -> int:
     # Returns the number of tokens in a text string.
@@ -67,7 +76,7 @@ def load_vectorstore(thread_id, pdf_docs):
     vectorstore = get_vectorstore(text_chunks)
 
     # Define o caminho da pasta e do arquivo FAISS
-    folder_path = f"c:\\docmind\\temp\\{thread_id}\\"
+    folder_path = os.path.join(temp_dir, thread_id)
 
     # Cria a pasta se ela não existir
     if not os.path.exists(folder_path):
@@ -82,7 +91,7 @@ def load_vectorstore(thread_id, pdf_docs):
 
 # Função para carregar o vetor do arquivo FAISS ou criar se não existir
 def load_vectorstore_from_file(thread_id, pdf_docs):
-    folder_path = f"c:\\docmind\\temp\\{thread_id}\\"
+    folder_path = os.path.join(temp_dir, thread_id)
     file_path = os.path.join(folder_path, "index.pkl")
 
     # Verifica se o arquivo FAISS já existe
@@ -167,7 +176,7 @@ class PDFChatView(APIView):
             return Response({'error': 'Arquivo PDF é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Salva o arquivo no diretório desejado
-        path = temp_pdf + str(pdf_file.name)
+        path = os.path.join(temp_dir, str(pdf_file.name))
 
         # Verificar se o thread_id já existe
         if ChatDetails.objects.filter(thread_id=thread_id).exists():
@@ -196,6 +205,8 @@ class PDFChatDetailView(APIView):
         # Retorna as mensagens associadas ao thread_id especificado.
 
         try:
+            print(temp_dir)
+
             # Filtrar mensagens com base no thread_id
             chat_messages = DjCheckpoint.objects.filter(thread_id=thread_id)
             # Aqui, você pode converter as mensagens em um formato serializável
