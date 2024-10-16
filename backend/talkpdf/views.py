@@ -32,6 +32,8 @@ def num_tokens_from_string(string: str) -> int:
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
+"""RESPONSÁVEIS POR CRIAR OS ARQUIVOS PARA PESQUISA DE DADOS"""
+# Função para extrair texto de documentos PDF
 def extract_text_from_pdf(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -40,6 +42,7 @@ def extract_text_from_pdf(pdf_docs):
             text += page.extract_text()
     return text
 
+# Função para dividir o texto em chunks
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
         separator="\n",
@@ -50,49 +53,54 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
+# Função para gerar o vetor a partir dos chunks de texto
 def get_vectorstore(text_chunks):
     embeddings = OpenAIEmbeddings()
     vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
-def load_vectorstore_from_file(thread_id, pdf):
-    filename = f"c:\\docmind\\temp\\{thread_id}\\index.pkl"
-
-    if os.path.exists(filename):
-        with open(filename, "rb") as file:
-            vectorstore = pickle.load(file)
-
-        return vectorstore
-    else:
-        load_vectorstore(thread_id, pdf)
-        load_vectorstore_from_file(thread_id, pdf)
-
+# Função para criar o vetor e salvar o índice FAISS
 def load_vectorstore(thread_id, pdf_docs):
+    # Extrair texto dos PDFs e gerar vetores
     raw_text = extract_text_from_pdf(pdf_docs)
     text_chunks = get_text_chunks(raw_text)
     vectorstore = get_vectorstore(text_chunks)
 
+    # Define o caminho da pasta e do arquivo FAISS
     folder_path = f"c:\\docmind\\temp\\{thread_id}\\"
-    file_path = os.path.join(folder_path, "index.pkl")
 
+    # Cria a pasta se ela não existir
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
+        print(f"Pasta criada: {folder_path}\n")
 
-    with open(file_path, "wb") as file:
-        pickle.dump(vectorstore, file)
-        print(f"Vetores salvos em {file_path}")
+    # Salva o índice FAISS
+    vectorstore.save_local(folder_path)
+    print(f"Vetores salvos em {folder_path}\n")
 
     return vectorstore
 
-"""def get_vectorstore(text_chunks):
-    embeddings = OpenAIEmbeddings()
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
-    vectorstore.save_local(f'C:\\docmind\\temp\\')
-    return vectorstore"""
+# Função para carregar o vetor do arquivo FAISS ou criar se não existir
+def load_vectorstore_from_file(thread_id, pdf_docs):
+    folder_path = f"c:\\docmind\\temp\\{thread_id}\\"
+    file_path = os.path.join(folder_path, "index.pkl")
+
+    # Verifica se o arquivo FAISS já existe
+    if os.path.exists(file_path):
+        print(f"Carregando vetores do arquivo {folder_path}\n")
+        vectorstore = FAISS.load_local(folder_path, OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+        return vectorstore
+    else:
+        print(f"O arquivo {file_path} não existe. Criando novos vetores.\n")
+        # Caso não exista, cria os vetores e salva o arquivo FAISS
+        return load_vectorstore(thread_id, pdf_docs)
 
 def call_model(state: MessagesState, vectorstore, question):
     # Modelo de chat
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+
+    # Filtrar apenas HumanMessage
+    human_messages = [msg.content for msg in state['messages'] if isinstance(msg, HumanMessage)]
 
     retriever = vectorstore.as_retriever()
     retrieved_docs = retriever.invoke(state["messages"][-1].content)
@@ -100,13 +108,15 @@ def call_model(state: MessagesState, vectorstore, question):
     # Ordena os documentos pela ordem de inserção, assumindo que eles têm um campo 'insertion_order'
     sorted_docs = sorted(retrieved_docs, key=lambda doc: doc.metadata.get('insertion_order', 0))
 
+    print(sorted_docs)
+
     # Concatene os resultados dos documentos recuperados em ordem
     pdf_response = "\n".join([doc.page_content for doc in sorted_docs])
 
-    memory = model.invoke(state["messages"])
+    #memory = model.invoke(state["messages"])
     #print(memory)
 
-    input_user = state["messages"] + [HumanMessage(content=pdf_response)]
+    input_user = "Históricos de mensagens passadas: \n " + str(human_messages) + "\n" + str([HumanMessage(content=pdf_response)])
 
     #print(f"Pergunta: {question}\n\nAqui está um trecho do documento:\n\n{input_user}\n\nPor favor, responda à pergunta com base no documento de forma direta.")
 
@@ -123,7 +133,7 @@ def call_model(state: MessagesState, vectorstore, question):
 
     print(prompt)
 
-    # print("O que é mandado: " + prompt)
+    #print("O que é mandado: " + prompt)
 
     #print()
 
@@ -135,10 +145,7 @@ def call_model(state: MessagesState, vectorstore, question):
 
     price_per_one_million = 0.150
 
-    print(f"""Total de tokens e valor total:\n
-            \nInput:{input_tokens} - US${(input_tokens * price_per_one_million)/1000000}\n
-            \nOutput:{output_tokens} - US${(output_tokens * price_per_one_million)/1000000}\n
-            \nTotal tokens:{input_tokens + output_tokens} - Total spent: US${((input_tokens + output_tokens) * price_per_one_million)/1000000}\n""")
+    print(f"""Total de tokens e valor total:\nInput: {input_tokens} - US${(input_tokens * price_per_one_million)/1000000:.8f}\nOutput: {output_tokens} - US${(output_tokens * price_per_one_million)/1000000:.8f}\nTotal tokens: {input_tokens + output_tokens} - Total gasto: US${((input_tokens + output_tokens) * price_per_one_million)/1000000:.8f}\n\n""",end="")
 
     return {"messages": response}
 
