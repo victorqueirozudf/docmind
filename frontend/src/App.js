@@ -152,6 +152,28 @@ const App = () => {
         }
     };
 
+    const deleteChat = async (threadId) => {
+        try {
+            const response = await fetch(`http://localhost:8000/api/chats/${threadId}/`, {
+                method: "DELETE",
+            });
+
+            if (response.ok) {
+                // Remove o chat excluído da lista de chats
+                setChats(chats.filter(chat => chat.thread_id !== threadId));
+                alert("Chat excluído com sucesso!");
+
+                // Atualiza a lista de chats (opcional, caso queira recarregar do servidor)
+                // fetchChats();  // descomente se quiser recarregar toda a lista
+            } else {
+                const data = await response.json();
+                alert(data.res || "Erro ao excluir chat");
+            }
+        } catch (error) {
+            console.error("Erro ao excluir chat:", error);
+        }
+    };
+
     return (
         <div>
             <h2>Criar Novo Chat</h2>
@@ -177,8 +199,11 @@ const App = () => {
             <h2>Chats Criados</h2>
             <ul>
                 {chats.map((chat) => (
-                    <li key={chat.thread_id} onClick={() => handleChatSelect(chat)}>
-                        {chat.chatName} - {chat.created_at}
+                    <li key={chat.thread_id}>
+                        <span onClick={() => handleChatSelect(chat)}>
+                          {chat.chatName} - {chat.created_at} - {chat.thread_id}
+                        </span>
+                        <button onClick={() => deleteChat(chat.thread_id)}>Excluir</button>
                     </li>
                 ))}
             </ul>
