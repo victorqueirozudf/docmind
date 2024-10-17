@@ -199,6 +199,14 @@ class PDFChatView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def delete(self, request, thread_id, *args, **kwargs):
+        try:
+            chat = ChatDetails.objects.get(thread_id=thread_id)
+            chat.delete()
+            return Response({"res": "Object deleted!"}, status=status.HTTP_200_OK)
+        except ChatDetails.DoesNotExist:
+            return Response({"res": "O chat não existe"}, status=status.HTTP_400_BAD_REQUEST)
+
 class PDFChatDetailView(APIView):
     def get(self, request, thread_id):
 
