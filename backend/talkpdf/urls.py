@@ -10,5 +10,6 @@ urlpatterns = [
     path('signin/', register_user, name ='signup'),
 
     path('chats/', PDFChatView.as_view()),
+    path('chats/delete/<slug:thread_id>/', PDFChatView.as_view()),
     path('chats/<slug:thread_id>/', PDFChatDetailView.as_view()),
 ]

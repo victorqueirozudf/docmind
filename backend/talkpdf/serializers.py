@@ -5,7 +5,8 @@ from .models import ChatDetails, DjCheckpoint
 class ChatDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatDetails
-        fields = '__all__'
+        fields = ['thread_id', 'path', 'chatName', 'created_at', 'user']
+        read_only_fields = ['user']  # O campo 'user' será preenchido automaticamente
 
 class DjCheckpointSerializer(serializers.ModelSerializer):
     class Meta:

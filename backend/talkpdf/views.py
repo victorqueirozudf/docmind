@@ -193,18 +193,17 @@ class LogoutView(APIView):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
 class PDFChatView(APIView):
+    permission_classes = (IsAuthenticated,)
+
     def get(self, request, *args, **kwargs):
 
         # Listar todos os chats criados.
 
-        chats = ChatDetails.objects.all()
+        chats = ChatDetails.objects.filter(user=request.user)
         serializer = ChatDetailSerializer(chats, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-
-        # Cria um chat novo
-
         thread_id = uuid.uuid4()
         chat_name = request.data.get('chatName')
         pdf_file = request.FILES.get('pdfs')
@@ -212,29 +211,59 @@ class PDFChatView(APIView):
         if not pdf_file:
             return Response({'error': 'Arquivo PDF é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Salva o arquivo no diretório desejado
         path = os.path.join(temp_dir, str(pdf_file.name))
 
-        # Verificar se o thread_id já existe
         if ChatDetails.objects.filter(thread_id=thread_id).exists():
             return Response(
                 {'error': 'Chat com este thread_id já existe.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Dados para criar o novo chat
         data = {
             'thread_id': thread_id,
-            'path': path,  # Salva o caminho absoluto do arquivo no servidor
-            'chatName': chat_name,
+            'path': path,
+            'chatName': chat_name
         }
 
         serializer = ChatDetailSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(user=request.user)  # Salva com o usuário autenticado
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, *args, **kwargs):
+        thread_id = kwargs.get('thread_id')  # Pega o thread_id dos parâmetros da URL
+
+        try:
+            chat = ChatDetails.objects.get(thread_id=thread_id, user=request.user)  # Busca o chat pelo thread_id
+        except ChatDetails.DoesNotExist:
+            return Response({'error': 'Chat não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        chat_name = request.data.get('chatName')
+        pdf_file = request.FILES.get('pdfs')
+
+        if pdf_file:
+            path = os.path.join(temp_dir, str(pdf_file.name))
+            chat.path = path  # Atualiza o caminho do PDF se um novo arquivo for enviado
+
+        if chat_name:
+            chat.chatName = chat_name  # Atualiza o nome do chat se fornecido
+
+        serializer = ChatDetailSerializer(chat, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()  # Salva as atualizações
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, thread_id, *args, **kwargs):
+        try:
+            chat = ChatDetails.objects.get(thread_id=thread_id, user=request.user)
+            chat.delete()  # Exclui o chat
+            return Response(status=status.HTTP_204_NO_CONTENT)  # Retorna um status de sucesso
+        except ChatDetails.DoesNotExist:
+            return Response({'error': 'Chat não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
 
 class PDFChatDetailView(APIView):
     def get(self, request, thread_id):
