@@ -1,56 +1,74 @@
-import './App.css';
-import {BrowserRouter, Routes, Route} from "react-router-dom"
-import 'bootstrap/dist/css/bootstrap.min.css';
-import {Login} from "./components/login";
-import {Home} from "./components/Home";
-import {Navigation} from './components/navigation';
-import {Logout} from './components/logout';
-import { SignIn } from "./components/signin";
-
-function App() {
-    return (
-        <BrowserRouter>
-        <Navigation></Navigation>
-        <Routes>
-          <Route path="/" element={<Home/>}/>
-          <Route path="/login" element={<Login/>}/>
-          <Route path="/logout" element={<Logout/>}/>
-          <Route path="/signin" element={<SignIn/>}/>
-        </Routes>
-      </BrowserRouter>
-    )
-}
-export default App;
-
-/*
-//COMENTADO APENAS PARA TESTES DE AUTENTICAÇÃO
-
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useEffect, useState } from "react";
+import axios from "axios";
 import ReactMarkdown from "react-markdown";
 
-const App = () => {
+export const Home = () => {
+    const [userData, setUserData] = useState(null);
     const [pdfFile, setPdfFile] = useState(null);
     const [chatName, setChatName] = useState('');
     const [chats, setChats] = useState([]);
     const [selectedChat, setSelectedChat] = useState(null);
     const [userQuestion, setUserQuestion] = useState('');
     const [chatHistory, setChatHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     // Função para listar os chats criados
     const fetchChats = async () => {
+        const accessToken = localStorage.getItem('access_token'); // Pega o token do Local Storage
+
+        if (!accessToken) {
+            alert("Você não está logado. Faça login!");
+            window.location.href = '/login';
+            return;
+        }
+
         try {
-            const response = await axios.get('http://localhost:8000/api/chats/');
+            const response = await axios.get('http://localhost:8000/api/chats/', {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`, // Inclui o token JWT no cabeçalho
+                },
+            });
             setChats(response.data);
         } catch (error) {
             console.error('Erro ao buscar chats:', error);
         }
     };
 
-    // UseEffect para carregar os chats ao carregar a página
     useEffect(() => {
+        const accessToken = localStorage.getItem('access_token');
+
+        if (!accessToken) {
+            alert("Você não está logado. Faça login!");
+            window.location.href = '/login';
+            return;
+        }
+
+        const fetchData = async () => {
+            try {
+                const { data } = await axios.get('http://localhost:8000/home/', {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                    },
+                });
+                setUserData(data); // Armazena os dados do usuário
+            } catch (error) {
+                console.log('Erro ao buscar dados: not auth', error);
+                if (error.response && error.response.status === 401) {
+                    alert("Sessão expirada. Faça login novamente.");
+                    window.location.href = '/login';
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
         fetchChats();
     }, []);
+
+    if (loading) {
+        return <h3>Carregando...</h3>;
+    }
 
     // Função para criar um novo chat
     const createChat = async () => {
@@ -59,10 +77,19 @@ const App = () => {
             formData.append('pdfs', pdfFile);
             formData.append('chatName', chatName);
 
+            const accessToken = localStorage.getItem('access_token'); // Pega o token do Local Storage
+
+            if (!accessToken) {
+                alert("Você não está logado. Faça login!");
+                window.location.href = '/login';
+                return;
+            }
+
             try {
                 const response = await axios.post('http://localhost:8000/api/chats/', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
+                        'Authorization': `Bearer ${accessToken}`, // Inclui o token JWT no cabeçalho
                     },
                 });
                 // Atualiza a lista de chats
@@ -153,29 +180,43 @@ const App = () => {
     };
 
     const deleteChat = async (threadId) => {
-        try {
-            const response = await fetch(`http://localhost:8000/api/chats/${threadId}/`, {
-                method: "DELETE",
-            });
+        const confirmDelete = window.confirm("Tem certeza que deseja excluir este chat? Esta ação não pode ser desfeita.");
 
-            if (response.ok) {
-                // Remove o chat excluído da lista de chats
+        if (confirmDelete) {
+            try {
+                const accessToken = localStorage.getItem('access_token');
+                await axios.delete(`http://localhost:8000/api/chats/delete/${threadId}/`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                    },
+                });
+                // Atualiza a lista de chats, filtrando o chat excluído
                 setChats(chats.filter(chat => chat.thread_id !== threadId));
+                // Limpa o chat selecionado e o histórico
+                if (selectedChat && selectedChat.thread_id === threadId) {
+                    setSelectedChat(null);
+                    setChatHistory([]); // Limpa o histórico do chat
+                }
                 alert("Chat excluído com sucesso!");
-
-                // Atualiza a lista de chats (opcional, caso queira recarregar do servidor)
-                // fetchChats();  // descomente se quiser recarregar toda a lista
-            } else {
-                const data = await response.json();
-                alert(data.res || "Erro ao excluir chat");
+            } catch (error) {
+                console.error('Erro ao excluir chat:', error);
+                alert("Ocorreu um erro ao excluir o chat.");
             }
-        } catch (error) {
-            console.error("Erro ao excluir chat:", error);
         }
     };
 
     return (
         <div>
+            {userData ? ( // Verifica se os dados do usuário foram carregados
+                <div>
+                    <h3>Olá, {userData.username}!</h3>
+                    <p>ID: {userData.id}</p>
+                    <p>Email: {userData.email}</p>
+                </div>
+            ) : (
+                <h3>Carregando...</h3> // Mensagem de carregamento
+            )}
+
             <h2>Criar Novo Chat</h2>
             <div>
                 <label>Nome do Chat:</label>
@@ -198,14 +239,17 @@ const App = () => {
 
             <h2>Chats Criados</h2>
             <ul>
-                {chats.map((chat) => (
-                    <li key={chat.thread_id}>
-                        <span onClick={() => handleChatSelect(chat)}>
-                          {chat.chatName} - {chat.created_at} - {chat.thread_id}
-                        </span>
-                        <button onClick={() => deleteChat(chat.thread_id)}>Excluir</button>
-                    </li>
-                ))}
+                {chats && chats.length > 0 ? (
+                    chats.map((chat) => (
+                        <li key={chat.thread_id} onClick={() => handleChatSelect(chat)}>
+                            {chat.chatName} - {chat.created_at} - {chat.thread_id}
+                            <button onClick={() => deleteChat(chat.thread_id)}>Excluir</button>
+                            {/* Botão de exclusão */}
+                        </li>
+                    ))
+                ) : (
+                    <p>Nenhum chat encontrado.</p>
+                )}
             </ul>
 
             {selectedChat && (
@@ -223,25 +267,28 @@ const App = () => {
 
                     <h3>Histórico de Perguntas e Respostas:</h3>
                     <ul>
-                        {chatHistory.map((entry, index) => (
-                            <li key={index}>
-                                {entry.inputContent && (
-                                    <div>
-                                        <strong>Pergunta:</strong> <br/><br/> {entry.inputContent} <br/> <br/>
-                                    </div>
-                                )}
-                                {entry.outputContent && (
-                                    <div>
-                                        <strong>Resposta:</strong> <ReactMarkdown>{entry.outputContent}</ReactMarkdown>
-                                    </div>
-                                )}
-                            </li>
-                        ))}
+                        {chatHistory && chatHistory.length > 0 ? (
+                            chatHistory.map((entry, index) => (
+                                <li key={index}>
+                                    {entry.inputContent && (
+                                        <div>
+                                            <strong>Pergunta:</strong> <br/><br/> {entry.inputContent} <br/> <br/>
+                                        </div>
+                                    )}
+                                    {entry.outputContent && (
+                                        <div>
+                                            <strong>Resposta:</strong>
+                                            <ReactMarkdown>{entry.outputContent}</ReactMarkdown>
+                                        </div>
+                                    )}
+                                </li>
+                            ))
+                        ) : (
+                            <p>Nenhuma conversa ainda.</p>
+                        )}
                     </ul>
                 </div>
             )}
         </div>
     );
 };
-
-export default App;*/

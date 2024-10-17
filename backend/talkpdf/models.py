@@ -1,27 +1,14 @@
 from django.db import models
-import json
-import uuid
-
-"""
-class TalkPDF(models.Model):
-    id = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-class DocumentsVectors(models.Model):
-    thread_id = models.TextField()
-    #listaVetores =
-    created_at = models.DateTimeField(auto_now_add=True)
-"""
-
 import uuid
 from django.db import models
+from django.contrib.auth.models import User
 
-# Modelo para armazenar os detalhes do chat
 class ChatDetails(models.Model):
-    thread_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # Chave primária com UUID
-    created_at = models.DateTimeField(auto_now_add=True)  # Data de criação automática
-    path = models.TextField()  # Caminho para o documento PDF
-    chatName = models.TextField()  # Nome personalizado do chat
+    user = models.ForeignKey(User, on_delete=models.CASCADE)  # Associar um chat a um usuário
+    thread_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    path = models.TextField()
+    chatName = models.TextField()
 
     def __str__(self):
         return self.chatName
