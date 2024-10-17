@@ -24,7 +24,7 @@ export const SignIn = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await axios.post('http://localhost:8000/api/register/', formData);
+            const response = await axios.post('http://localhost:8000/signin/', formData);
             if (response.status === 201) {
                 setSuccess(true);
                 setError('');

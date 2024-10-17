@@ -7,6 +7,7 @@ from langchain.output_parsers import ResponseSchema
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
 
@@ -22,7 +23,7 @@ import tiktoken
 from .checkpointer import DjangoSaver
 from dotenv import load_dotenv, find_dotenv
 from .models import DjCheckpoint, ChatDetails
-from .serializers import ChatDetailSerializer#, UserSerializer
+from .serializers import ChatDetailSerializer, UserSerializer
 
 # Onde é carregador as variáveis de ambiente
 load_dotenv(find_dotenv())
@@ -157,11 +158,25 @@ def call_model(state: MessagesState, vectorstore, question):
 
     return {"messages": response}
 
+@api_view(['POST'])
+def register_user(request):
+    if request.method == 'POST':
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 class HomeView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
-        content = {'message': 'Bem vindo ao jwt autenticacao'}
+        user = request.user  # Obtém o usuário autenticado
+        content = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+        }
         return Response(content)
 
 class LogoutView(APIView):
@@ -187,6 +202,9 @@ class PDFChatView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
+
+        # Cria um chat novo
+
         thread_id = uuid.uuid4()
         chat_name = request.data.get('chatName')
         pdf_file = request.FILES.get('pdfs')

@@ -1,28 +1,43 @@
-import {useEffect, useState} from "react";
+import { useEffect } from "react";
 import axios from "axios";
 
 export const Logout = () => {
-
     useEffect(() => {
-        (async () => {
+        const logoutUser = async () => {
             try {
-                const {data} = await axios.post('http://localhost:8000/logout/',{
-                    refresh_token:localStorage.getItem('refresh_token')
-                } ,{headers: {
-                    'Content-Type': 'application/json'
-                }}, {withCredentials: true});
+                const refreshToken = localStorage.getItem('refresh_token');
+                // alert(refreshToken)
+                if (!refreshToken) {
+                    alert('Você não está logado.');
+                    window.location.href = '/login';
+                    return;
+                }
 
-                console.log('logout', data)
+                const response = await axios.post(
+                    'http://localhost:8000/logout/',
+                    { refresh_token: refreshToken },
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('access_token')}` // Adicionando o token
+                        }
+                    }
+                );
+
+                console.log('logout: ', response.data);
                 localStorage.clear();
-                axios.defaults.headers.common['Authorization'] = null;
-                window.location.href = '/login'
-            } catch (e) {
-                console.log('logout not working')
+                delete axios.defaults.headers.common['Authorization'];
+                window.location.href = '/login';
+
+                alert('Deslogado com sucesso! ')
+            } catch (error) {
+                console.error('Erro no logout:', error);
+                alert('O logout não funcionou. Tente novamente.');
             }
-        })();
+        };
+
+        logoutUser();
     }, []);
 
-    return (
-        <div></div>
-    )
-}
+    return <div></div>;
+};

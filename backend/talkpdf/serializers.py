@@ -12,7 +12,7 @@ class DjCheckpointSerializer(serializers.ModelSerializer):
         model = DjCheckpoint
         fields = '__all__'
 
-"""class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
 
     class Meta:
@@ -26,4 +26,4 @@ class DjCheckpointSerializer(serializers.ModelSerializer):
         )
         user.set_password(validated_data['password'])
         user.save()
-        return user"""
+        return user
