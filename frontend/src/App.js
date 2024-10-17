@@ -1,3 +1,30 @@
+import './App.css';
+import {BrowserRouter, Routes, Route} from "react-router-dom"
+import 'bootstrap/dist/css/bootstrap.min.css';
+import {Login} from "./components/login";
+import {Home} from "./components/Home";
+import {Navigation} from './components/navigation';
+import {Logout} from './components/logout';
+import { SignIn } from "./components/signin";
+
+function App() {
+    return (
+        <BrowserRouter>
+        <Navigation></Navigation>
+        <Routes>
+          <Route path="/" element={<Home/>}/>
+          <Route path="/login" element={<Login/>}/>
+          <Route path="/logout" element={<Logout/>}/>
+          <Route path="/signin" element={<SignIn/>}/>
+        </Routes>
+      </BrowserRouter>
+    )
+}
+export default App;
+
+/*
+//COMENTADO APENAS PARA TESTES DE AUTENTICAÇÃO
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import ReactMarkdown from "react-markdown";
@@ -192,4 +219,4 @@ const App = () => {
     );
 };
 
-export default App;
+export default App;*/

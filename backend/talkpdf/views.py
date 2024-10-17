@@ -1,40 +1,39 @@
 # LÓGICA DO SISTEMA AQUI, COMENTADO PARA SER FEITO MAIS TESTES
 
-# https://blog.logrocket.com/django-rest-framework-create-api/
-
 import os
-import json
 import uuid
-from django.http import HttpResponse, JsonResponse
+
+from langchain.output_parsers import ResponseSchema
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
-from langchain_core.messages import HumanMessage, AIMessage
+
+from langchain_core.messages import HumanMessage
 from langchain.text_splitter import CharacterTextSplitter
 from langgraph.graph import START, MessagesState, StateGraph
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
+
 from pypdf import PdfReader
+import tiktoken
+
 from .checkpointer import DjangoSaver
 from dotenv import load_dotenv, find_dotenv
 from .models import DjCheckpoint, ChatDetails
-from .serializers import ChatDetailSerializer
-import tiktoken
-import pickle
+from .serializers import ChatDetailSerializer#, UserSerializer
 
+# Onde é carregador as variáveis de ambiente
 load_dotenv(find_dotenv())
 
-#temp_dir = "c:\\docmind\\temp"
-
+# Criação da pasta temp (./docmind/temp)
 temp_dir = os.path.dirname(os.path.abspath(__file__))
 temp_dir = os.path.dirname(os.path.dirname(temp_dir))
-
-# Define o caminho para a pasta 'temp'
 temp_dir = os.path.join(temp_dir, 'temp')
-
-# Cria a pasta 'temp' se ela não existir
 os.makedirs(temp_dir, exist_ok=True)
 
+# Define o número de tokens de um texto
 def num_tokens_from_string(string: str) -> int:
     # Returns the number of tokens in a text string.
     encoding = tiktoken.encoding_for_model("gpt-4o-mini")
@@ -157,6 +156,26 @@ def call_model(state: MessagesState, vectorstore, question):
     print(f"""Total de tokens e valor total:\nInput: {input_tokens} - US${(input_tokens * price_per_one_million)/1000000:.8f}\nOutput: {output_tokens} - US${(output_tokens * price_per_one_million)/1000000:.8f}\nTotal tokens: {input_tokens + output_tokens} - Total gasto: US${((input_tokens + output_tokens) * price_per_one_million)/1000000:.8f}\n\n""",end="")
 
     return {"messages": response}
+
+class HomeView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        content = {'message': 'Bem vindo ao jwt autenticacao'}
+        return Response(content)
+
+class LogoutView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+
+        try:
+            refresh_token = request.data["refresh_token"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response(status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
 
 class PDFChatView(APIView):
     def get(self, request, *args, **kwargs):

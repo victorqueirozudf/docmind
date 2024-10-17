@@ -1,18 +1,4 @@
 from django.db import models
-import json
-import uuid
-
-"""
-class TalkPDF(models.Model):
-    id = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-class DocumentsVectors(models.Model):
-    thread_id = models.TextField()
-    #listaVetores =
-    created_at = models.DateTimeField(auto_now_add=True)
-"""
-
 import uuid
 from django.db import models
 
