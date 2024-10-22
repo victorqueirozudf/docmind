@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 
 class ChatDetails(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)  # Associar um chat a um usuário
-    thread_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    thread_id = models.UUIDField(primary_key=True, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     path = models.TextField()
     chatName = models.TextField()

@@ -13,7 +13,7 @@ export function Navigation() {
         <Navbar bg="dark" variant="dark">
           <Navbar.Brand href="/">JWT Authentification</Navbar.Brand>
           <Nav className="me-auto">
-          {isAuth ? <Nav.Link href="/">Home</Nav.Link> : null}
+          {isAuth ? <Nav.Link href="/">Home</Nav.Link> : <Nav.Link href="/signin">SignIn</Nav.Link>}
           </Nav>
           <Nav>
           {isAuth ? <Nav.Link href="/logout">Logout</Nav.Link> :

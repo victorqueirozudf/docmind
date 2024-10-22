@@ -2,8 +2,8 @@
 
 import os
 import uuid
+import io
 
-from langchain.output_parsers import ResponseSchema
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -42,41 +42,54 @@ def num_tokens_from_string(string: str) -> int:
     return num_tokens
 
 """RESPONSÁVEIS POR CRIAR OS ARQUIVOS PARA PESQUISA DE DADOS"""
-# Função para extrair texto de documentos PDF
-def extract_text_from_pdf(pdf_docs):
+def get_vectorstore_from_files(pdf_docs, thread_id):
     text = ""
-    for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-    return text
 
-# Função para dividir o texto em chunks
-def get_text_chunks(text):
+    # Verifica se é uma lista de arquivos ou um único arquivo
+    if not isinstance(pdf_docs, list):
+        pdf_docs = [pdf_docs]
+
+    print(f"Recebendo {len(pdf_docs)} documentos PDF para o thread_id {thread_id}.\n")
+
+    for pdf in pdf_docs:
+        # Verifica se o pdf tem o atributo 'name', caso contrário, assume que é um objeto bytes
+        if hasattr(pdf, 'name'):
+            print(f"Lendo arquivo: {pdf.name}")
+        else:
+            print(f"Lendo arquivo anônimo (sem nome), tamanho: {len(pdf)} bytes")
+
+        # Lê o conteúdo do arquivo em memória
+        pdf_bytes = pdf.read() if hasattr(pdf, 'read') else pdf  # Se for um arquivo, chama o read()
+        pdf_stream = io.BytesIO(pdf_bytes)
+        #print(f"Tamanho do arquivo em bytes: {len(pdf_bytes)}")
+
+        # Processa o PDF
+        pdf_reader = PdfReader(pdf_stream)
+
+        for page in pdf_reader.pages:
+            page_text = page.extract_text()
+            text += page_text
+
+    # Split do texto em chunks
+    #print("Iniciando divisão do texto em chunks...\n")
     text_splitter = CharacterTextSplitter(
         separator="\n",
         chunk_size=1024,
         chunk_overlap=256,
         length_function=len
     )
+
     chunks = text_splitter.split_text(text)
-    return chunks
+    #print(f"{len(chunks)} chunks gerados.\n")
 
-# Função para gerar o vetor a partir dos chunks de texto
-def get_vectorstore(text_chunks):
+    # Criação dos embeddings
     embeddings = OpenAIEmbeddings()
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
-    return vectorstore
 
-# Função para criar o vetor e salvar o índice FAISS
-def load_vectorstore(thread_id, pdf_docs):
-    # Extrair texto dos PDFs e gerar vetores
-    raw_text = extract_text_from_pdf(pdf_docs)
-    text_chunks = get_text_chunks(raw_text)
-    vectorstore = get_vectorstore(text_chunks)
+    # Criação da store FAISS
+    vectorstore = FAISS.from_texts(texts=chunks, embedding=embeddings)
 
     # Define o caminho da pasta e do arquivo FAISS
-    folder_path = os.path.join(temp_dir, thread_id)
+    folder_path = os.path.join(temp_dir, str(thread_id))
 
     # Cria a pasta se ela não existir
     if not os.path.exists(folder_path):
@@ -90,7 +103,7 @@ def load_vectorstore(thread_id, pdf_docs):
     return vectorstore
 
 # Função para carregar o vetor do arquivo FAISS ou criar se não existir
-def load_vectorstore_from_file(thread_id, pdf_docs):
+def load_vectorstore_from_file(thread_id):
     folder_path = os.path.join(temp_dir, thread_id)
     file_path = os.path.join(folder_path, "index.pkl")
 
@@ -100,9 +113,9 @@ def load_vectorstore_from_file(thread_id, pdf_docs):
         vectorstore = FAISS.load_local(folder_path, OpenAIEmbeddings(), allow_dangerous_deserialization=True)
         return vectorstore
     else:
-        print(f"O arquivo {file_path} não existe. Criando novos vetores.\n")
+        print(f"O arquivo {file_path} não existe. Subir arquivo novamente.\n")
         # Caso não exista, cria os vetores e salva o arquivo FAISS
-        return load_vectorstore(thread_id, pdf_docs)
+        #return get_vectorstore_from_files(thread_id, pdf_docs)
 
 def call_model(state: MessagesState, vectorstore, question):
     # Modelo de chat
@@ -140,13 +153,8 @@ def call_model(state: MessagesState, vectorstore, question):
         )
     ]
 
-    print(prompt)
+    #print(prompt)
 
-    #print("O que é mandado: " + prompt)
-
-    #print()
-
-    # Chama o modelo passando todas as mensagens do estado
     response = model.invoke(prompt)
 
     input_tokens = num_tokens_from_string(prompt[0][1]) + num_tokens_from_string(prompt[1][1])
@@ -196,9 +204,6 @@ class PDFChatView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, *args, **kwargs):
-
-        # Listar todos os chats criados.
-
         chats = ChatDetails.objects.filter(user=request.user)
         serializer = ChatDetailSerializer(chats, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -211,7 +216,7 @@ class PDFChatView(APIView):
         if not pdf_file:
             return Response({'error': 'Arquivo PDF é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        path = os.path.join(temp_dir, str(pdf_file.name))
+        print(f'Tipo de pdf_file: {type(pdf_file)}')
 
         if ChatDetails.objects.filter(thread_id=thread_id).exists():
             return Response(
@@ -219,42 +224,30 @@ class PDFChatView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        path = os.path.join(temp_dir, str(thread_id))
+
         data = {
             'thread_id': thread_id,
             'path': path,
-            'chatName': chat_name
+            'chatName': chat_name,
         }
 
+        print(thread_id)
+
+        # criando os vetores a partir do documento, não sendo necessário hostear o mesmo
+        get_vectorstore_from_files(pdf_file, thread_id)
+
         serializer = ChatDetailSerializer(data=data)
+
+        print(thread_id)
+
         if serializer.is_valid():
+            print(f'Serializer validated data: {serializer.validated_data}')
             serializer.save(user=request.user)  # Salva com o usuário autenticado
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def put(self, request, *args, **kwargs):
-        thread_id = kwargs.get('thread_id')  # Pega o thread_id dos parâmetros da URL
-
-        try:
-            chat = ChatDetails.objects.get(thread_id=thread_id, user=request.user)  # Busca o chat pelo thread_id
-        except ChatDetails.DoesNotExist:
-            return Response({'error': 'Chat não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
-
-        chat_name = request.data.get('chatName')
-        pdf_file = request.FILES.get('pdfs')
-
-        if pdf_file:
-            path = os.path.join(temp_dir, str(pdf_file.name))
-            chat.path = path  # Atualiza o caminho do PDF se um novo arquivo for enviado
-
-        if chat_name:
-            chat.chatName = chat_name  # Atualiza o nome do chat se fornecido
-
-        serializer = ChatDetailSerializer(chat, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()  # Salva as atualizações
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
+        # imprima os erros do serializer
+        print(f'Serializer errors: {serializer.errors}')
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, thread_id, *args, **kwargs):
@@ -271,8 +264,6 @@ class PDFChatDetailView(APIView):
         # Retorna as mensagens associadas ao thread_id especificado.
 
         try:
-            print(temp_dir)
-
             # Filtrar mensagens com base no thread_id
             chat_messages = DjCheckpoint.objects.filter(thread_id=thread_id)
             # Aqui, você pode converter as mensagens em um formato serializável
@@ -295,15 +286,15 @@ class PDFChatDetailView(APIView):
         question = request.data.get("question")
         thread_id = request.data.get("thread_id")
 
-        pdf_path = [pdfs]
-        print(pdf_path)
+        vectorstore = load_vectorstore_from_file(thread_id)
 
-        if not pdfs or not question or not thread_id:
-            return Response({"error": "PDF, pergunta ou thread_id são necessários"},
+        if not question or not thread_id:
+            return Response({"error": "Pergunta ou thread_id são necessários"},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        if not os.path.exists(pdfs):
-            return Response({"error": "Arquivo PDF não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        if not vectorstore:
+            return Response({"error": "É necessário ter uma base de dados."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         # Criar uma instância do DjangoSaver para checkpoints
         checkpointer = DjangoSaver()
@@ -313,17 +304,11 @@ class PDFChatDetailView(APIView):
 
         # Definir os nós no grafo
         workflow.add_edge(START, "model")
-        workflow.add_node("model", lambda state: call_model(state, vectorstore,
-                                                            question))
+        workflow.add_node("model", lambda state: call_model(state, vectorstore, question))
 
         config = {"configurable": {"thread_id": thread_id}}
 
         app = workflow.compile(checkpointer=checkpointer)
-
-        # Extraindo e processando o PDF
-        files = extract_text_from_pdf(pdf_path)
-        chunks = get_text_chunks(files)
-        vectorstore = load_vectorstore_from_file(thread_id, pdf_path)
 
         # Criar a mensagem de entrada
         input_message = HumanMessage(content=question)
@@ -338,8 +323,5 @@ class PDFChatDetailView(APIView):
             "thread_id": thread_id,
             "last_message": events[-1]["messages"][-1].content if events else "Sem resposta disponível"
         }
-
-        values = app.get_state(config).values
-        #print(values)
 
         return Response({'status': 'success', 'answer': answer}, status=status.HTTP_200_OK)
