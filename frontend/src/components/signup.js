@@ -3,10 +3,9 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';  // Importar useNavigate para redirecionamento
 
-export const SignIn = () => {
+export const SignUp = () => {
     const [formData, setFormData] = useState({
         username: '',
-        email: '',
         password: ''
     });
 
@@ -24,7 +23,7 @@ export const SignIn = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await axios.post('http://localhost:8000/signin/', formData);
+            const response = await axios.post('http://localhost:8000/authentication/signup/', formData);
             if (response.status === 201) {
                 setSuccess(true);
                 setError('');
@@ -48,16 +47,6 @@ export const SignIn = () => {
                             type="text"
                             name="username"
                             value={formData.username}
-                            onChange={handleChange}
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label>Email:</label>
-                        <input
-                            type="email"
-                            name="email"
-                            value={formData.email}
                             onChange={handleChange}
                             required
                         />

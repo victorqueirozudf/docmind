@@ -7,6 +7,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from pypdf import PdfReader
 import tiktoken
+from .checkpointer import DjangoSaver
 
 temp_dir = os.path.dirname(os.path.abspath(__file__))
 temp_dir = os.path.dirname(os.path.dirname(temp_dir))
@@ -144,3 +145,32 @@ def call_model(state: MessagesState, vectorstore, question):
     print(f"""Total de tokens e valor total:\nInput: {input_tokens} - US${(input_tokens * price_per_one_million)/1000000:.8f}\nOutput: {output_tokens} - US${(output_tokens * price_per_one_million)/1000000:.8f}\nTotal tokens: {input_tokens + output_tokens} - Total gasto: US${((input_tokens + output_tokens) * price_per_one_million)/1000000:.8f}\n\n""",end="")
 
     return {"messages": response}
+
+def get_anwser(thread_id, question):
+    vectorstore = load_vectorstore_from_file(thread_id)
+    # Criar uma instância do DjangoSaver para checkpoints
+    checkpointer = DjangoSaver()
+
+    # Definir um novo grafo
+    workflow = StateGraph(state_schema=MessagesState)
+
+    # Definir os nós no grafo
+    workflow.add_edge(START, "model")
+    workflow.add_node("model", lambda state: call_model(state, vectorstore, question))
+
+    config = {"configurable": {"thread_id": thread_id}}
+
+    app = workflow.compile(checkpointer=checkpointer)
+
+    # Criar a mensagem de entrada
+    input_message = HumanMessage(content=question)
+    events = []
+
+    # Executar o fluxo de conversa
+    for event in app.stream({"messages": [input_message]}, config, stream_mode="values"):
+        events.append(event)
+
+    # Retornar o último estado do chat e o UUID do thread
+    answer = events[-1]["messages"][-1].content if events else "Sem resposta disponível"
+
+    return answer

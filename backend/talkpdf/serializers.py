@@ -1,30 +1,21 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import ChatDetails, DjCheckpoint
+from .models import ChatDetails, ChatCheckpoint, ChatWrite
 
-class ChatDetailSerializer(serializers.ModelSerializer):
+class ChatDetailsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatDetails
-        fields = ['thread_id', 'path', 'chatName', 'user']  # Inclua 'user' se necessário
-        read_only_fields = ['user']  # Se o usuário deve ser preenchido automaticamente
-
-class DjCheckpointSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DjCheckpoint
         fields = '__all__'
 
-class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
+class ChatCheckpointSerializer(serializers.ModelSerializer):
+    chat = serializers.PrimaryKeyRelatedField(queryset=ChatDetails.objects.all())
 
     class Meta:
-        model = User
-        fields = ('username', 'email', 'password')
+        model = ChatCheckpoint
+        fields = '__all__'
 
-    def create(self, validated_data):
-        user = User(
-            username=validated_data['username'],
-            email=validated_data['email']
-        )
-        user.set_password(validated_data['password'])
-        user.save()
-        return user
+class ChatWriteSerializer(serializers.ModelSerializer):
+    chat = serializers.PrimaryKeyRelatedField(queryset=ChatDetails.objects.all())
+
+    class Meta:
+        model = ChatWrite
+        fields = '__all__'

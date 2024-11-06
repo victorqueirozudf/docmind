@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useState } from "react";
+import CryptoJS from "crypto-js";
 
 export const Login = () => {
     const [username, setUsername] = useState('');
@@ -8,15 +9,35 @@ export const Login = () => {
     const submit = async e => {
         e.preventDefault();
 
-        const user = {
-            username: username,
-            password: password
+        // Obter as chaves do .env
+        // Obtenha a chave e o IV das variáveis de ambiente
+        const key = process.env.REACT_APP_KEY_CRYPTOGRAPHY;
+        const iv = process.env.REACT_APP_IV_CRYPTOGRAPHY;
+
+        const encryptPassword = (password) => {
+            // Converte a chave e o IV para WordArray
+            const keyWords = CryptoJS.enc.Utf8.parse(key);
+            const ivWords = CryptoJS.enc.Utf8.parse(iv);
+
+            // Encripta a senha
+            const encrypted = CryptoJS.AES.encrypt(password, keyWords, {
+                iv: ivWords,
+                mode: CryptoJS.mode.CBC,
+                padding: CryptoJS.pad.Pkcs7
+            });
+
+            // Retorna a senha encriptada em Base64
+            return encrypted.toString();
         };
 
-        console.log(user)
+        const user = {
+            username: username,
+            password: encryptPassword(password)
+        };
 
         try {
-            const { data } = await axios.post('http://localhost:8000/token/', user, {
+            console.log(user.password)
+            const { data } = await axios.post('http://localhost:8000/authentication/login/', user, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -27,11 +48,10 @@ export const Login = () => {
             localStorage.setItem('access_token', data.access);
             localStorage.setItem('refresh_token', data.refresh);
             axios.defaults.headers.common['Authorization'] = `Bearer ${data['access']}`;
-            window.location.href = '/';
+            window.location.href = '/chat';
 
             alert('Logado!')
         } catch (error) {
-            // Verifica se o erro é relacionado a usuário não encontrado
             if (error.response && error.response.status === 401) {
                 alert('Usuário não encontrado. Por favor, crie uma conta.');
             } else {
@@ -79,4 +99,4 @@ export const Login = () => {
             </form>
         </div>
     );
-}
+};

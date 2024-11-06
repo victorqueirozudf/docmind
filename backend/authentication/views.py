@@ -1,6 +1,5 @@
 from rest_framework.views import APIView
 from .serializers import AuthenticationSerializers
-from dotenv import load_dotenv, find_dotenv
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 from base64 import b64decode
@@ -15,16 +14,11 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth.hashers import make_password
 import os
 
-load_dotenv()
-
-# Classe criada para autenticação
-
 class UserView(APIView):
     # Serializer serve para melhorar a comunicação entre as apis
     serializer_class = AuthenticationSerializers
 
     # Método para inserir dados
-
     def post(self, request):
 
         # Serializando e validando os dados recebidos
@@ -37,10 +31,6 @@ class UserView(APIView):
         # Pegado a senha encriptada
         encrypted_password = serializer.validated_data.get('password')
 
-        # Definindo as chaves para descriptografar
-        #key = config('KEY_CRYPTOGRAPHY')
-        #iv = config('IV_CRYPTOGRAPHY')
-
         key = os.getenv('KEY_CRYPTOGRAPHY').encode('utf-8')
         iv = os.getenv('IV_CRYPTOGRAPHY').encode('utf-8')
 
@@ -49,7 +39,6 @@ class UserView(APIView):
 
         # Descriptografando a senha
         decrypted_password = unpad(cipher.decrypt(b64decode(encrypted_password)), AES.block_size).decode('utf-8')
-        # decrypted_password = 'admin'
 
         # Verificando o usuário no banco de dados
         user = User.objects.filter(username=username).first()
@@ -85,6 +74,17 @@ class UserView(APIView):
             return False
         except Session.DoesNotExist:
             return
+
+class UserDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        data = {
+            'id': user.id,
+            'username': user.username,
+        }
+        return Response(data, status=status.HTTP_200_OK)
 
 class RegisterUserView(APIView):
     def post(self, request):
