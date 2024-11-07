@@ -3,38 +3,35 @@ from typing import Any, List, Tuple
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import Checkpoint, CheckpointMetadata, CheckpointTuple, BaseCheckpointSaver
 
-from .models import DjCheckpoint, DjWrite
-
-#
+from .models import ChatDetails, ChatCheckpoint, ChatWrite
+import os
 
 class DjangoSaver(BaseCheckpointSaver):
     def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         thread_id = config["configurable"]["thread_id"]
         thread_ts = config["configurable"].get("thread_ts")
 
+        try:
+            chat = ChatDetails.objects.get(thread_id=thread_id)
+        except ChatDetails.DoesNotExist:
+            return None
+
         if thread_ts:
-            # SELECT checkpoint, metadata, thread_ts, parent_ts
-            # FROM checkpoints
-            # WHERE thread_id = %(thread_id)s AND thread_ts = %(thread_ts)s
-            dj_checkpoint = (
-                DjCheckpoint.objects.filter(thread_id=thread_id, thread_ts=thread_ts)
+            chat_checkpoint = (
+                ChatCheckpoint.objects.filter(chat=chat, thread_ts=thread_ts)
                 .values_list("checkpoint", "metadata", "thread_ts", "parent_ts")
                 .first()
             )
         else:
-            # SELECT checkpoint, metadata, thread_ts, parent_ts
-            # FROM checkpoints
-            # WHERE thread_id = %(thread_id)s
-            # ORDER BY thread_ts DESC LIMIT 1
-            dj_checkpoint = (
-                DjCheckpoint.objects.filter(thread_id=thread_id)
+            chat_checkpoint = (
+                ChatCheckpoint.objects.filter(chat=chat)
                 .order_by("-thread_ts")
                 .values_list("checkpoint", "metadata", "thread_ts", "parent_ts")
                 .first()
             )
 
-        if dj_checkpoint:
-            checkpoint, metadata, thread_ts, parent_ts = dj_checkpoint
+        if chat_checkpoint:
+            checkpoint, metadata, thread_ts, parent_ts = chat_checkpoint
             if not config["configurable"].get("thread_ts"):
                 config = {
                     "configurable": {
@@ -43,9 +40,10 @@ class DjangoSaver(BaseCheckpointSaver):
                     }
                 }
 
-                # SELECT task_id, channel, value
-                # FROM writes
-                # WHERE thread_id = %(thread_id)s AND thread_ts = %(thread_ts)s
+                chat_writes = ChatWrite.objects.filter(
+                    chat=chat, thread_ts=thread_ts
+                ).values_list("task_id", "channel", "value")
+
                 return CheckpointTuple(
                     config=config,
                     checkpoint=self.serde.loads(checkpoint),
@@ -62,9 +60,7 @@ class DjangoSaver(BaseCheckpointSaver):
                     ),
                     pending_writes=[
                         (task_id, channel, self.serde.loads(value))
-                        for task_id, channel, value in DjWrite.objects.filter(
-                            thread_id=thread_id, thread_ts=thread_ts
-                        ).values_list("task_id", "channel", "value")
+                        for task_id, channel, value in chat_writes
                     ],
                 )
 
@@ -75,11 +71,16 @@ class DjangoSaver(BaseCheckpointSaver):
             metadata: CheckpointMetadata,
             parent_config: RunnableConfig | None  # Novo parâmetro adicionado
     ) -> RunnableConfig:
-        #print("Salvando checkpoint:", checkpoint)
         thread_id = config["configurable"]["thread_id"]
         parent_ts = config["configurable"].get("thread_ts")
-        DjCheckpoint.objects.update_or_create(
-            thread_id=thread_id,
+
+        try:
+            chat = ChatDetails.objects.get(thread_id=thread_id)
+        except ChatDetails.DoesNotExist:
+            raise ValueError(f"ChatDetails com thread_id {thread_id} não encontrado.")
+
+        ChatCheckpoint.objects.update_or_create(
+            chat=chat,
             thread_ts=checkpoint["id"],
             defaults={
                 "parent_ts": parent_ts if parent_ts else None,
@@ -88,21 +89,22 @@ class DjangoSaver(BaseCheckpointSaver):
             },
         )
 
-
     def put_writes(
         self, config: RunnableConfig, writes: List[Tuple[str, Any]], task_id: str
     ) -> None:
-        # INSERT INTO writes
-        #     (thread_id, thread_ts, task_id, idx, channel, value)
-        # VALUES
-        #     (%s, %s, %s, %s, %s, %s)
-        # ON CONFLICT (thread_id, thread_ts, task_id, idx)
-        # DO UPDATE SET value = EXCLUDED.value;
-        DjWrite.objects.bulk_create(
+        thread_id = config["configurable"]["thread_id"]
+        thread_ts = config["configurable"].get("thread_ts")
+
+        try:
+            chat = ChatDetails.objects.get(thread_id=thread_id)
+        except ChatDetails.DoesNotExist:
+            raise ValueError(f"ChatDetails com thread_id {thread_id} não encontrado.")
+
+        ChatWrite.objects.bulk_create(
             [
-                DjWrite(
-                    thread_id=config["configurable"]["thread_id"],
-                    thread_ts=config["configurable"]["thread_ts"],
+                ChatWrite(
+                    chat=chat,
+                    thread_ts=thread_ts,
                     task_id=task_id,
                     idx=idx,
                     channel=channel,
@@ -113,5 +115,5 @@ class DjangoSaver(BaseCheckpointSaver):
             ignore_conflicts=False,
             update_conflicts=True,
             update_fields=["value"],
-            unique_fields=["thread_id", "thread_ts", "task_id", "idx"],
+            unique_fields=["chat", "thread_ts", "task_id", "idx"],
         )

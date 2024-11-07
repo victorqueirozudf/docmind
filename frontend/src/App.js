@@ -5,17 +5,21 @@ import {Login} from "./components/login";
 import {Home} from "./components/Home";
 import {Navigation} from './components/navigation';
 import {Logout} from './components/logout';
-import { SignIn } from "./components/signin";
+import { SignUp } from "./components/signup.js";
+import ProtectedRoute from './components/Protection.js';
+import NotFound from './components/NotFound.js';
 
 function App() {
     return (
         <BrowserRouter>
         <Navigation></Navigation>
         <Routes>
-          <Route path="/" element={<Home/>}/>
-          <Route path="/login" element={<Login/>}/>
-          <Route path="/logout" element={<Logout/>}/>
-          <Route path="/signin" element={<SignIn/>}/>
+            <Route path="/chat" element={<ProtectedRoute element={<Home />} />} />
+            <Route path="/" element={<Login />} />
+            <Route path="/login" element={<Login/>}/>
+            <Route path="/logout" element={<Logout/>}/>
+            <Route path="/signup" element={<SignUp/>}/>
+            <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     )

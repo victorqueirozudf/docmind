@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
+import './Home.css';
 
 export const Home = () => {
     const [userData, setUserData] = useState(null);
@@ -11,6 +12,40 @@ export const Home = () => {
     const [userQuestion, setUserQuestion] = useState('');
     const [chatHistory, setChatHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [verifyingToken, setVerifyingToken] = useState(true); // Estado para verificar o token
+
+    // Estados para a edição de chats
+    const [editingChatId, setEditingChatId] = useState(null);
+    const [updatedChatName, setUpdatedChatName] = useState('');
+    const [updatedPdfFile, setUpdatedPdfFile] = useState(null);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [updateError, setUpdateError] = useState('');
+
+    // Função para converter base64 para UTF-8
+    const base64ToUtf8 = (base64) => {
+        const binaryStr = atob(base64);
+        const bytes = Uint8Array.from(binaryStr, char => char.charCodeAt(0));
+        const decoder = new TextDecoder('utf-8');
+        return decoder.decode(bytes);
+    };
+
+    // Função para verificar o token
+    const verifyToken = async (accessToken) => {
+        console.log('Verificando token:', accessToken); // Log do token
+        try {
+            const response = await axios.post('http://localhost:8000/authentication/verify-token', {}, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
+                    'Content-Type': 'application/json',
+                },
+            });
+            console.log('Verificação bem-sucedida:', response.data);
+            return response.status === 200;
+        } catch (error) {
+            console.error('Erro ao verificar token:', error.response ? error.response.data : error.message);
+            return false;
+        }
+    };
 
     // Função para listar os chats criados
     const fetchChats = async () => {
@@ -25,48 +60,65 @@ export const Home = () => {
         try {
             const response = await axios.get('http://localhost:8000/api/chats/', {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`, // Inclui o token JWT no cabeçalho
+                    'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
                 },
             });
             setChats(response.data);
         } catch (error) {
             console.error('Erro ao buscar chats:', error);
+            if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+                alert("Sessão expirada ou inválida. Faça login novamente.");
+                localStorage.removeItem('access_token'); // Remove o token inválido
+                window.location.href = '/login';
+            }
         }
     };
 
     useEffect(() => {
-        const accessToken = localStorage.getItem('access_token');
+        const initialize = async () => {
+            const accessToken = localStorage.getItem('access_token');
 
-        if (!accessToken) {
-            alert("Você não está logado. Faça login!");
-            window.location.href = '/login';
-            return;
-        }
+            if (!accessToken) {
+                alert("Você não está logado. Faça login!");
+                window.location.href = '/login';
+                return;
+            }
 
-        const fetchData = async () => {
+            // Verifica se o token é válido
+            const isValid = await verifyToken(accessToken);
+            if (!isValid) {
+                alert("Token inválido ou expirado. Faça login novamente.");
+                localStorage.removeItem('access_token'); // Remove o token inválido
+                window.location.href = '/login';
+                return;
+            }
+
+            // Se o token for válido, busca os dados do usuário e os chats
             try {
-                const { data } = await axios.get('http://localhost:8000/home/', {
+                const userResponse = await axios.get('http://localhost:8000/authentication/user/', {
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`,
+                        'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
                     },
                 });
-                setUserData(data); // Armazena os dados do usuário
+                setUserData(userResponse.data);
+                await fetchChats();
             } catch (error) {
                 console.log('Erro ao buscar dados: not auth', error);
-                if (error.response && error.response.status === 401) {
-                    alert("Sessão expirada. Faça login novamente.");
+                if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+                    alert("Sessão expirada ou inválida. Faça login novamente.");
+                    localStorage.removeItem('access_token'); // Remove o token inválido
                     window.location.href = '/login';
                 }
             } finally {
                 setLoading(false);
+                setVerifyingToken(false);
             }
         };
-        fetchData();
-        fetchChats();
+        initialize();
     }, []);
 
-    if (loading) {
+    if (loading || verifyingToken) {
         return <h3>Carregando...</h3>;
     }
 
@@ -89,7 +141,7 @@ export const Home = () => {
                 const response = await axios.post('http://localhost:8000/api/chats/', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
-                        'Authorization': `Bearer ${accessToken}`, // Inclui o token JWT no cabeçalho
+                        'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
                     },
                 });
                 // Atualiza a lista de chats
@@ -99,6 +151,8 @@ export const Home = () => {
                 setPdfFile(null);
             } catch (error) {
                 console.error('Erro ao criar chat:', error);
+                // Opcional: Adicionar feedback ao usuário sobre o erro
+                alert('Erro ao criar chat. Verifique os dados e tente novamente.');
             }
         } else {
             alert('Por favor, envie um PDF e insira um nome para o chat.');
@@ -113,12 +167,20 @@ export const Home = () => {
 
     // Função para buscar histórico do chat selecionado
     const fetchChatHistory = async (threadId) => {
+        const accessToken = localStorage.getItem('access_token'); // Pega o token do Local Storage
+
         try {
-            const response = await axios.get(`http://localhost:8000/api/chats/${threadId}/`);
+            const response = await axios.get(`http://localhost:8000/api/chats/${threadId}/`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
+                },
+            });
+
             // Verifica se há mensagens na resposta
             if (!response.data.messages || !Array.isArray(response.data.messages)) {
                 console.error('Não foram encontradas mensagens:', response.data);
-                return; // Retorna se não houver mensagens
+                setChatHistory([]); // Limpa o histórico se não houver mensagens
+                return;
             }
 
             // Mapeia as mensagens para extrair os conteúdos desejados
@@ -126,7 +188,9 @@ export const Home = () => {
                 // Faz o parse da string de metadata
                 let metadata;
                 try {
-                    metadata = JSON.parse(message.metadata); // Converte a string JSON em um objeto
+                    // Decodifica base64 para UTF-8
+                    const metadataStr = base64ToUtf8(message.metadata); // Decodifica de base64 para UTF-8 string
+                    metadata = JSON.parse(metadataStr); // Converte a string JSON em um objeto
                 } catch (error) {
                     console.error('Erro ao fazer parse da metadata:', error);
                     return { inputContent: '', outputContent: '' }; // Retorna valores vazios se houver erro
@@ -150,19 +214,38 @@ export const Home = () => {
             setChatHistory(filteredChatHistory); // Atualiza o estado com as mensagens filtradas
         } catch (error) {
             console.error('Erro ao buscar histórico do chat:', error);
+            if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+                alert("Sessão expirada ou inválida. Faça login novamente.");
+                localStorage.removeItem('access_token');
+                window.location.href = '/login';
+            } else {
+                alert('Erro ao buscar histórico do chat. Tente novamente mais tarde.');
+            }
         }
     };
 
     // Função para enviar uma pergunta ao chat
     const sendQuestion = async () => {
         if (userQuestion && selectedChat) {
-            const formData = new FormData();
-            formData.append('question', userQuestion);
-            formData.append('thread_id', selectedChat.thread_id); // Envia o ID do chat selecionado
-            formData.append('path_file', selectedChat.path); // Adiciona o caminho do PDF
+            const accessToken = localStorage.getItem('access_token'); // Pega o token do Local Storage
+
+            if (!accessToken) {
+                alert("Você não está logado. Faça login!");
+                window.location.href = '/login';
+                return;
+            }
 
             try {
-                const response = await axios.put(`http://localhost:8000/api/chats/${selectedChat.thread_id}/`, formData);
+                const response = await axios.put(
+                    `http://localhost:8000/api/chats/${selectedChat.thread_id}/`,
+                    { question: userQuestion }, // Envia apenas a pergunta como JSON
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
+                        },
+                    }
+                );
 
                 // Debug para verificar a resposta
                 console.log('Resposta da API:', response.data);
@@ -173,19 +256,34 @@ export const Home = () => {
                 setUserQuestion(''); // Limpa o campo de entrada
             } catch (error) {
                 console.error('Erro ao enviar pergunta:', error);
+                if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+                    alert("Sessão expirada ou inválida. Faça login novamente.");
+                    localStorage.removeItem('access_token');
+                    window.location.href = '/login';
+                } else {
+                    alert('Erro ao enviar pergunta. Tente novamente.');
+                }
             }
         } else {
             alert('Por favor, insira uma pergunta.');
         }
     };
 
+    // Função para deletar um chat
     const deleteChat = async (threadId) => {
         const confirmDelete = window.confirm("Tem certeza que deseja excluir este chat? Esta ação não pode ser desfeita.");
 
         if (confirmDelete) {
+            const accessToken = localStorage.getItem('access_token'); // Pega o token do Local Storage
+
+            if (!accessToken) {
+                alert("Você não está logado. Faça login!");
+                window.location.href = '/login';
+                return;
+            }
+
             try {
-                const accessToken = localStorage.getItem('access_token');
-                await axios.delete(`http://localhost:8000/api/chats/delete/${threadId}/`, {
+                await axios.delete(`http://localhost:8000/api/chats/delete/${threadId}/`, { // Uso correto de template literals
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
                     },
@@ -200,95 +298,197 @@ export const Home = () => {
                 alert("Chat excluído com sucesso!");
             } catch (error) {
                 console.error('Erro ao excluir chat:', error);
-                alert("Ocorreu um erro ao excluir o chat.");
+                if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+                    alert("Sessão expirada ou inválida. Faça login novamente.");
+                    localStorage.removeItem('access_token');
+                    window.location.href = '/login';
+                } else {
+                    alert("Ocorreu um erro ao excluir o chat.");
+                }
             }
         }
     };
 
+    // Função para abrir o modo de edição
+    const openEditMode = (chat) => {
+        setEditingChatId(chat.thread_id);
+        setUpdatedChatName(chat.chatName);
+        setUpdatedPdfFile(null);
+        setUpdateError('');
+    };
+
+    // Função para cancelar o modo de edição
+    const cancelEditMode = () => {
+        setEditingChatId(null);
+        setUpdatedChatName('');
+        setUpdatedPdfFile(null);
+        setUpdateError('');
+    };
+
+    // Função para atualizar o chat
+    const updateChatFunction = async (threadId) => {
+        if (!updatedChatName && !updatedPdfFile) {
+            setUpdateError('Por favor, insira um novo nome e/ou selecione um novo arquivo PDF.');
+            return;
+        }
+
+        const formData = new FormData();
+        if (updatedChatName) formData.append('chatName', updatedChatName);
+        if (updatedPdfFile) formData.append('pdfs', updatedPdfFile);
+
+        const accessToken = localStorage.getItem('access_token'); // Pega o token do Local Storage
+
+        if (!accessToken) {
+            alert("Você não está logado. Faça login!");
+            window.location.href = '/login';
+            return;
+        }
+
+        setIsUpdating(true);
+        setUpdateError('');
+
+        try {
+            const response = await axios.put(`http://localhost:8000/api/chats/put/${threadId}/`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+
+            // Atualiza a lista de chats com os novos dados
+            setChats(chats.map(chat => chat.thread_id === response.data.thread_id ? response.data : chat));
+
+            // Se o chat atualizado estiver selecionado, atualiza também
+            if (selectedChat && selectedChat.thread_id === response.data.thread_id) {
+                setSelectedChat(response.data);
+                fetchChatHistory(response.data.thread_id);
+            }
+
+            alert('Chat atualizado com sucesso!');
+            cancelEditMode();
+        } catch (error) {
+            console.error('Erro ao atualizar chat:', error);
+            setUpdateError('Erro ao atualizar chat. Verifique os dados e tente novamente.');
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     return (
-        <div>
-            {userData ? ( // Verifica se os dados do usuário foram carregados
-                <div>
-                    <h3>Olá, {userData.username}!</h3>
-                    <p>ID: {userData.id}</p>
-                    <p>Email: {userData.email}</p>
-                </div>
-            ) : (
-                <h3>Carregando...</h3> // Mensagem de carregamento
-            )}
-
-            <h2>Criar Novo Chat</h2>
+        <div className={'d-flex'}>
             <div>
-                <label>Nome do Chat:</label>
-                <input
-                    type="text"
-                    value={chatName}
-                    onChange={(e) => setChatName(e.target.value)}
-                    placeholder="Digite o nome do chat"
-                />
-            </div>
-            <div>
-                <label>PDF:</label>
-                <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={(e) => setPdfFile(e.target.files[0])}
-                />
-            </div>
-            <button onClick={createChat}>Criar Chat</button>
-
-            <h2>Chats Criados</h2>
-            <ul>
-                {chats && chats.length > 0 ? (
-                    chats.map((chat) => (
-                        <li key={chat.thread_id} onClick={() => handleChatSelect(chat)}>
-                            {chat.chatName} - {chat.created_at} - {chat.thread_id}
-                            <button onClick={() => deleteChat(chat.thread_id)}>Excluir</button>
-                            {/* Botão de exclusão */}
-                        </li>
-                    ))
-                ) : (
-                    <p>Nenhum chat encontrado.</p>
-                )}
-            </ul>
-
-            {selectedChat && (
-                <div>
-                    <h2>Chat Selecionado: {selectedChat.chatName}</h2>
+                {userData ? ( // Verifica se os dados do usuário foram carregados
                     <div>
-                        <input
-                            type="text"
-                            value={userQuestion}
-                            onChange={(e) => setUserQuestion(e.target.value)}
-                            placeholder="Digite sua pergunta"
-                        />
-                        <button onClick={sendQuestion}>Enviar Pergunta</button>
+                        <h3>Olá, {userData.username}!</h3>
+                        <p>ID: {userData.id}</p>
+                        <p>Email: {userData.email}</p> {/* Adicionado email */}
+                        {/* Adicione outros campos conforme necessário */}
                     </div>
+                ) : (
+                    <h3>Carregando...</h3> // Mensagem de carregamento
+                )}
 
-                    <h3>Histórico de Perguntas e Respostas:</h3>
-                    <ul>
-                        {chatHistory && chatHistory.length > 0 ? (
-                            chatHistory.map((entry, index) => (
-                                <li key={index}>
-                                    {entry.inputContent && (
-                                        <div>
-                                            <strong>Pergunta:</strong> <br/><br/> {entry.inputContent} <br/> <br/>
-                                        </div>
-                                    )}
-                                    {entry.outputContent && (
-                                        <div>
-                                            <strong>Resposta:</strong>
-                                            <ReactMarkdown>{entry.outputContent}</ReactMarkdown>
-                                        </div>
-                                    )}
-                                </li>
-                            ))
-                        ) : (
-                            <p>Nenhuma conversa ainda.</p>
-                        )}
-                    </ul>
+                <h2>Criar Novo Chat</h2>
+                <div>
+                    <label>Nome do Chat:</label>
+                    <input
+                        type="text"
+                        value={chatName}
+                        onChange={(e) => setChatName(e.target.value)}
+                        placeholder="Digite o nome do chat"
+                    />
                 </div>
-            )}
+                <div>
+                    <label>PDF:</label>
+                    <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => setPdfFile(e.target.files[0])}
+                    />
+                </div>
+                <button onClick={createChat}>Criar Chat</button>
+
+                <h2>Chats Criados</h2>
+                <ul>
+                    {chats && chats.length > 0 ? (
+                        chats.map((chat) => (
+                            <li key={chat.thread_id} onClick={() => handleChatSelect(chat)}>
+                                {/* Verifica se o chat está no modo de edição */}
+                                {editingChatId === chat.thread_id ? (
+                                    <div>
+                                        <input
+                                            type="text"
+                                            value={updatedChatName}
+                                            onChange={(e) => setUpdatedChatName(e.target.value)}
+                                            placeholder="Novo nome do chat"
+                                        />
+                                        <input
+                                            type="file"
+                                            accept="application/pdf"
+                                            onChange={(e) => setUpdatedPdfFile(e.target.files[0])}
+                                        />
+                                        {updateError && <p style={{ color: 'red' }}>{updateError}</p>}
+                                        <button onClick={() => updateChatFunction(chat.thread_id)} disabled={isUpdating}>
+                                            {isUpdating ? 'Atualizando...' : 'Salvar'}
+                                        </button>
+                                        <button onClick={cancelEditMode} disabled={isUpdating}>
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="chat-item">
+                                        <span>{chat.chatName} - {new Date(chat.created_at).toLocaleString()}</span>
+                                        <button onClick={(e) => { e.stopPropagation(); openEditMode(chat); }}>Atualizar</button>
+                                        <button onClick={(e) => { e.stopPropagation(); deleteChat(chat.thread_id); }}>Excluir</button>
+                                    </div>
+                                )}
+                            </li>
+                        ))
+                    ) : (
+                        <p>Nenhum chat encontrado.</p>
+                    )}
+                </ul>
+            </div>
+
+            <div>
+                {selectedChat && (
+                    <div>
+                        <h2>Chat Selecionado: {selectedChat.chatName}</h2>
+                        <div>
+                            <input
+                                type="text"
+                                value={userQuestion}
+                                onChange={(e) => setUserQuestion(e.target.value)}
+                                placeholder="Digite sua pergunta"
+                            />
+                            <button onClick={sendQuestion}>Enviar Pergunta</button>
+                        </div>
+
+                        <h3>Histórico de Perguntas e Respostas:</h3>
+                        <ul>
+                            {chatHistory && chatHistory.length > 0 ? (
+                                chatHistory.map((entry, index) => (
+                                    <li key={index}>
+                                        {entry.inputContent && (
+                                            <div>
+                                                <strong>Pergunta:</strong> <br /><br /> {entry.inputContent} <br /> <br />
+                                            </div>
+                                        )}
+                                        {entry.outputContent && (
+                                            <div>
+                                                <strong>Resposta:</strong>
+                                                <ReactMarkdown>{entry.outputContent}</ReactMarkdown>
+                                            </div>
+                                        )}
+                                    </li>
+                                ))
+                            ) : (
+                                <p>Nenhuma conversa ainda.</p>
+                            )}
+                        </ul>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

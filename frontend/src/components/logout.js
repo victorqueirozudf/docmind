@@ -14,7 +14,7 @@ export const Logout = () => {
                 }
 
                 const response = await axios.post(
-                    'http://localhost:8000/logout/',
+                    'http://localhost:8000/authentication/logout/',
                     { refresh_token: refreshToken },
                     {
                         headers: {
