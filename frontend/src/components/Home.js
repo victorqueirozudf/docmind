@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
+import './Home.css';
 
 export const Home = () => {
     const [userData, setUserData] = useState(null);
@@ -12,6 +13,13 @@ export const Home = () => {
     const [chatHistory, setChatHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [verifyingToken, setVerifyingToken] = useState(true); // Estado para verificar o token
+
+    // Estados para a edição de chats
+    const [editingChatId, setEditingChatId] = useState(null);
+    const [updatedChatName, setUpdatedChatName] = useState('');
+    const [updatedPdfFile, setUpdatedPdfFile] = useState(null);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [updateError, setUpdateError] = useState('');
 
     // Função para converter base64 para UTF-8
     const base64ToUtf8 = (base64) => {
@@ -27,7 +35,7 @@ export const Home = () => {
         try {
             const response = await axios.post('http://localhost:8000/authentication/verify-token', {}, {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
                     'Content-Type': 'application/json',
                 },
             });
@@ -52,7 +60,7 @@ export const Home = () => {
         try {
             const response = await axios.get('http://localhost:8000/api/chats/', {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`, // Inclui o token JWT no cabeçalho
+                    'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
                 },
             });
             setChats(response.data);
@@ -90,7 +98,7 @@ export const Home = () => {
                 const userResponse = await axios.get('http://localhost:8000/authentication/user/', {
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`,
+                        'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
                     },
                 });
                 setUserData(userResponse.data);
@@ -133,7 +141,7 @@ export const Home = () => {
                 const response = await axios.post('http://localhost:8000/api/chats/', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
-                        'Authorization': `Bearer ${accessToken}`, // Inclui o token JWT no cabeçalho
+                        'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
                     },
                 });
                 // Atualiza a lista de chats
@@ -164,7 +172,7 @@ export const Home = () => {
         try {
             const response = await axios.get(`http://localhost:8000/api/chats/${threadId}/`, {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
+                    'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
                 },
             });
 
@@ -234,7 +242,7 @@ export const Home = () => {
                     {
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${accessToken}`, // Inclui o token JWT no cabeçalho
+                            'Authorization': `Bearer ${accessToken}`, // Uso correto de template literals
                         },
                     }
                 );
@@ -275,7 +283,7 @@ export const Home = () => {
             }
 
             try {
-                await axios.delete(`http://localhost:8000/api/chats/delete/${threadId}/`, { // Ajuste na URL de DELETE
+                await axios.delete(`http://localhost:8000/api/chats/delete/${threadId}/`, { // Uso correto de template literals
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
                     },
@@ -298,6 +306,71 @@ export const Home = () => {
                     alert("Ocorreu um erro ao excluir o chat.");
                 }
             }
+        }
+    };
+
+    // Função para abrir o modo de edição
+    const openEditMode = (chat) => {
+        setEditingChatId(chat.thread_id);
+        setUpdatedChatName(chat.chatName);
+        setUpdatedPdfFile(null);
+        setUpdateError('');
+    };
+
+    // Função para cancelar o modo de edição
+    const cancelEditMode = () => {
+        setEditingChatId(null);
+        setUpdatedChatName('');
+        setUpdatedPdfFile(null);
+        setUpdateError('');
+    };
+
+    // Função para atualizar o chat
+    const updateChatFunction = async (threadId) => {
+        if (!updatedChatName && !updatedPdfFile) {
+            setUpdateError('Por favor, insira um novo nome e/ou selecione um novo arquivo PDF.');
+            return;
+        }
+
+        const formData = new FormData();
+        if (updatedChatName) formData.append('chatName', updatedChatName);
+        if (updatedPdfFile) formData.append('pdfs', updatedPdfFile);
+
+        const accessToken = localStorage.getItem('access_token'); // Pega o token do Local Storage
+
+        if (!accessToken) {
+            alert("Você não está logado. Faça login!");
+            window.location.href = '/login';
+            return;
+        }
+
+        setIsUpdating(true);
+        setUpdateError('');
+
+        try {
+            const response = await axios.put(`http://localhost:8000/api/chats/put/${threadId}/`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+
+            // Atualiza a lista de chats com os novos dados
+            setChats(chats.map(chat => chat.thread_id === response.data.thread_id ? response.data : chat));
+
+            // Se o chat atualizado estiver selecionado, atualiza também
+            if (selectedChat && selectedChat.thread_id === response.data.thread_id) {
+                setSelectedChat(response.data);
+                fetchChatHistory(response.data.thread_id);
+            }
+
+            alert('Chat atualizado com sucesso!');
+            cancelEditMode();
+        } catch (error) {
+            console.error('Erro ao atualizar chat:', error);
+            setUpdateError('Erro ao atualizar chat. Verifique os dados e tente novamente.');
+        } finally {
+            setIsUpdating(false);
         }
     };
 
@@ -340,9 +413,35 @@ export const Home = () => {
                     {chats && chats.length > 0 ? (
                         chats.map((chat) => (
                             <li key={chat.thread_id} onClick={() => handleChatSelect(chat)}>
-                                {chat.chatName} - {new Date(chat.created_at).toLocaleString()} - {chat.thread_id}
-                                <button onClick={(e) => { e.stopPropagation(); deleteChat(chat.thread_id); }}>Excluir</button>
-                                {/* Botão de exclusão */}
+                                {/* Verifica se o chat está no modo de edição */}
+                                {editingChatId === chat.thread_id ? (
+                                    <div>
+                                        <input
+                                            type="text"
+                                            value={updatedChatName}
+                                            onChange={(e) => setUpdatedChatName(e.target.value)}
+                                            placeholder="Novo nome do chat"
+                                        />
+                                        <input
+                                            type="file"
+                                            accept="application/pdf"
+                                            onChange={(e) => setUpdatedPdfFile(e.target.files[0])}
+                                        />
+                                        {updateError && <p style={{ color: 'red' }}>{updateError}</p>}
+                                        <button onClick={() => updateChatFunction(chat.thread_id)} disabled={isUpdating}>
+                                            {isUpdating ? 'Atualizando...' : 'Salvar'}
+                                        </button>
+                                        <button onClick={cancelEditMode} disabled={isUpdating}>
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="chat-item">
+                                        <span>{chat.chatName} - {new Date(chat.created_at).toLocaleString()}</span>
+                                        <button onClick={(e) => { e.stopPropagation(); openEditMode(chat); }}>Atualizar</button>
+                                        <button onClick={(e) => { e.stopPropagation(); deleteChat(chat.thread_id); }}>Excluir</button>
+                                    </div>
+                                )}
                             </li>
                         ))
                     ) : (

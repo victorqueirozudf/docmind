@@ -1,3 +1,5 @@
+# controller.py
+
 import os
 import io
 from langchain_core.messages import HumanMessage
@@ -9,6 +11,8 @@ from pypdf import PdfReader
 import tiktoken
 from .checkpointer import DjangoSaver
 
+
+# Criação da pasta temp (./docmind/temp)
 temp_dir = os.path.dirname(os.path.abspath(__file__))
 temp_dir = os.path.dirname(os.path.dirname(temp_dir))
 temp_dir = os.path.join(temp_dir, 'temp')
@@ -16,7 +20,7 @@ os.makedirs(temp_dir, exist_ok=True)
 
 # Define o número de tokens de um texto
 def num_tokens_from_string(string: str) -> int:
-    # Returns the number of tokens in a text string.
+    # Retorna o número de tokens em uma string de texto.
     encoding = tiktoken.encoding_for_model("gpt-4o-mini")
     num_tokens = len(encoding.encode(string))
     return num_tokens
@@ -41,7 +45,6 @@ def get_vectorstore_from_files(pdf_docs, thread_id):
         # Lê o conteúdo do arquivo em memória
         pdf_bytes = pdf.read() if hasattr(pdf, 'read') else pdf  # Se for um arquivo, chama o read()
         pdf_stream = io.BytesIO(pdf_bytes)
-        #print(f"Tamanho do arquivo em bytes: {len(pdf_bytes)}")
 
         # Processa o PDF
         pdf_reader = PdfReader(pdf_stream)
@@ -51,7 +54,6 @@ def get_vectorstore_from_files(pdf_docs, thread_id):
             text += page_text
 
     # Split do texto em chunks
-    #print("Iniciando divisão do texto em chunks...\n")
     text_splitter = CharacterTextSplitter(
         separator="\n",
         chunk_size=1024,
@@ -60,7 +62,6 @@ def get_vectorstore_from_files(pdf_docs, thread_id):
     )
 
     chunks = text_splitter.split_text(text)
-    #print(f"{len(chunks)} chunks gerados.\n")
 
     # Criação dos embeddings
     embeddings = OpenAIEmbeddings()
@@ -80,7 +81,7 @@ def get_vectorstore_from_files(pdf_docs, thread_id):
     vectorstore.save_local(folder_path)
     print(f"Vetores salvos em {folder_path}\n")
 
-    return vectorstore
+    return vectorstore, folder_path  # Retorna ambos os valores
 
 # Função para carregar o vetor do arquivo FAISS ou criar se não existir
 def load_vectorstore_from_file(thread_id):
@@ -91,11 +92,13 @@ def load_vectorstore_from_file(thread_id):
     if os.path.exists(file_path):
         print(f"Carregando vetores do arquivo {folder_path}\n")
         vectorstore = FAISS.load_local(folder_path, OpenAIEmbeddings(), allow_dangerous_deserialization=True)
-        return vectorstore
+        return vectorstore, folder_path
     else:
         print(f"O arquivo {file_path} não existe. Subir arquivo novamente.\n")
         # Caso não exista, cria os vetores e salva o arquivo FAISS
-        #return get_vectorstore_from_files(thread_id, pdf_docs)
+        # É necessário passar os pdf_docs aqui se for para criar
+        # Exemplo: return get_vectorstore_from_files(pdf_docs, thread_id)
+        return None, folder_path  # Ajuste conforme a lógica desejada
 
 def call_model(state: MessagesState, vectorstore, question):
     # Modelo de chat
@@ -115,12 +118,7 @@ def call_model(state: MessagesState, vectorstore, question):
     # Concatene os resultados dos documentos recuperados em ordem
     pdf_response = "\n".join([doc.page_content for doc in sorted_docs])
 
-    #memory = model.invoke(state["messages"])
-    #print(memory)
-
     input_user = "Históricos de mensagens passadas: \n " + str(human_messages) + "\n" + str([HumanMessage(content=pdf_response)])
-
-    #print(f"Pergunta: {question}\n\nAqui está um trecho do documento:\n\n{input_user}\n\nPor favor, responda à pergunta com base no documento de forma direta.")
 
     prompt = [
         (
@@ -133,8 +131,6 @@ def call_model(state: MessagesState, vectorstore, question):
         )
     ]
 
-    #print(prompt)
-
     response = model.invoke(prompt)
 
     input_tokens = num_tokens_from_string(prompt[0][1]) + num_tokens_from_string(prompt[1][1])
@@ -142,12 +138,20 @@ def call_model(state: MessagesState, vectorstore, question):
 
     price_per_one_million = 0.150
 
-    print(f"""Total de tokens e valor total:\nInput: {input_tokens} - US${(input_tokens * price_per_one_million)/1000000:.8f}\nOutput: {output_tokens} - US${(output_tokens * price_per_one_million)/1000000:.8f}\nTotal tokens: {input_tokens + output_tokens} - Total gasto: US${((input_tokens + output_tokens) * price_per_one_million)/1000000:.8f}\n\n""",end="")
+    print(f"""Total de tokens e valor total:
+Input: {input_tokens} - US${(input_tokens * price_per_one_million)/1000000:.8f}
+Output: {output_tokens} - US${(output_tokens * price_per_one_million)/1000000:.8f}
+Total tokens: {input_tokens + output_tokens} - Total gasto: US${((input_tokens + output_tokens) * price_per_one_million)/1000000:.8f}\n\n""", end="")
 
     return {"messages": response}
 
 def get_anwser(thread_id, question):
-    vectorstore = load_vectorstore_from_file(thread_id)
+    vectorstore, folder_path = load_vectorstore_from_file(thread_id)
+    if not vectorstore:
+        # Lógica para carregar ou criar o vectorstore se não existir
+        # Por exemplo, se você tiver acesso aos pdf_docs aqui, você poderia chamar get_vectorstore_from_files
+        pass  # Implemente conforme necessário
+
     # Criar uma instância do DjangoSaver para checkpoints
     checkpointer = DjangoSaver()
 

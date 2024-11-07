@@ -12,6 +12,7 @@ certifi==2024.8.30
 cffi==1.17.1
 chardet==5.2.0
 charset-normalizer==3.3.2
+chatgpt_md_converter==0.1.2
 click==8.1.7
 colorama==0.4.6
 cryptography==43.0.1
