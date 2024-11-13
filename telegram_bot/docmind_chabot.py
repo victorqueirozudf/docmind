@@ -64,7 +64,7 @@ def get_audio_anwser(audio_path):
 
     try:
         with open(audio_path, "rb") as audio_file:
-            transcription = openai.Audio.transcriptions.create(
+            transcription = openai.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file
             )
