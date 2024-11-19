@@ -81,7 +81,7 @@ def get_vectorstore_from_files(pdf_docs, thread_id):
     vectorstore.save_local(folder_path)
     print(f"Vetores salvos em {folder_path}\n")
 
-    return vectorstore, folder_path  # Retorna ambos os valores
+    return folder_path  # Retorna ambos os valores
 
 # Função para carregar o vetor do arquivo FAISS ou criar se não existir
 def load_vectorstore_from_file(thread_id):
