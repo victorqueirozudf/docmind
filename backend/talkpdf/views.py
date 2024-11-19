@@ -63,7 +63,7 @@ class PDFChatView(APIView):
 
     def post(self, request, *args, **kwargs):
         """
-        Cria um novo chat associado a um arquivo PDF enviado e gera os vetores necessários.
+        Cria um novo chat associado a múltiplos arquivos PDF enviados e gera os vetores necessários.
 
         **URL:** `POST /api/chats/`
 
@@ -73,7 +73,7 @@ class PDFChatView(APIView):
 
         **Corpo da Requisição:**
             - chatName: Nome do chat.
-            - pdfs: Arquivo PDF a ser enviado.
+            - pdfs: Lista de arquivos PDF a serem enviados.
 
         Args:
             request (HttpRequest): O objeto HTTP da requisição contendo 'chatName' e 'pdfs'.
@@ -84,8 +84,8 @@ class PDFChatView(APIView):
             Response: Resposta HTTP contendo os dados do chat criado serializados e o status 201 CREATED.
 
         Raises:
-            HTTP_400_BAD_REQUEST: Se o arquivo PDF não for fornecido ou se o thread_id já existir.
-            HTTP_500_INTERNAL_SERVER_ERROR: Se ocorrer um erro ao processar o PDF.
+            HTTP_400_BAD_REQUEST: Se nenhum arquivo PDF for fornecido.
+            HTTP_500_INTERNAL_SERVER_ERROR: Se ocorrer um erro ao processar os PDFs.
 
         **Exemplo de Resposta (Sucesso):**
         ```json
@@ -97,33 +97,27 @@ class PDFChatView(APIView):
         }
         ```
 
-        **Exemplo de Erro (PDF não fornecido):**
+        **Exemplo de Erro (PDFs não fornecidos):**
         ```json
         {
-            "error": "Arquivo PDF é obrigatório."
+            "error": "Ao menos um arquivo PDF é obrigatório."
         }
         ```
 
-        **Exemplo de Erro (Thread ID já existe):**
+        **Exemplo de Erro (Processamento dos PDFs falhou):**
         ```json
         {
-            "error": "Chat com este thread_id já existe."
+            "error": "Erro ao processar os PDFs: Detalhes do erro."
         }
-        ```
-
-        **Exemplo de Erro (Processamento do PDF falhou):**
-        ```json
-        {
-            "error": "Erro ao processar o PDF: Detalhes do erro."
-        }
-        ```
         """
         thread_id = uuid.uuid4()
         chat_name = request.data.get('chatName')
-        pdf_file = request.FILES.get('pdfs')
+        pdf_files = request.FILES.getlist('pdfs')  # Obter lista de PDFs enviados
 
-        if not pdf_file:
-            return Response({'error': 'Arquivo PDF é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
+        print(pdf_files)
+
+        if not pdf_files:
+            return Response({'error': 'Ao menos um arquivo PDF é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if ChatDetails.objects.filter(thread_id=thread_id).exists():
             return Response(
@@ -139,17 +133,18 @@ class PDFChatView(APIView):
             chatName=chat_name
         )
 
-        # Criar os vetores a partir do documento PDF usando o controller
+        # Processar todos os arquivos PDF enviados
         try:
-            vectorstore, folder_path = get_vectorstore_from_files(pdf_file, thread_id)
+            # Supondo que o controller possa processar múltiplos arquivos de uma vez
+            folder_path = get_vectorstore_from_files(pdf_files, thread_id)
         except Exception as e:
             # Se ocorrer um erro durante a criação dos vetores, desfazer a criação do chat
             print(f"Error: {e}")
             chat.delete()
-            return Response({'error': f'Erro ao processar o PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f'Erro ao processar os PDFs: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Atualizar o caminho do chat se necessário
-        chat.path = folder_path  # Atualiza com o caminho retornado pelo controller
+        # Atualizar o caminho do chat com o caminho retornado pelo controller
+        chat.path = folder_path
         chat.save()
 
         serializer = ChatDetailsSerializer(chat)
@@ -242,9 +237,9 @@ class PDFChatView(APIView):
         chat = get_object_or_404(ChatDetails, thread_id=thread_id, user=request.user)
 
         chat_name = request.data.get('chatName', chat.chatName)
-        pdf_file = request.FILES.get('pdfs', None)
+        pdf_files = request.FILES.getlist('pdfs')
 
-        if not pdf_file and 'chatName' not in request.data:
+        if not pdf_files and 'chatName' not in request.data:
             return Response({'error': 'Nenhum dado fornecido para atualização.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Atualizar o nome do chat, se fornecido
@@ -252,7 +247,7 @@ class PDFChatView(APIView):
             chat.chatName = chat_name
 
         # Se um novo PDF for fornecido, processá-lo
-        if pdf_file:
+        if pdf_files:
             # Remover os vetores antigos
             try:
                 if os.path.exists(chat.path):
@@ -261,8 +256,9 @@ class PDFChatView(APIView):
                 return Response({'error': f'Erro ao remover vetores antigos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             # Criar os novos vetores a partir do novo PDF usando o controller
+            # RESOLVER ESSE ERRO: Internal Server Error: /api/chats/put/2e648543-d85b-4271-b3f2-b9094528a814/
             try:
-                vectorstore, folder_path = get_vectorstore_from_files(pdf_file, thread_id)
+                folder_path = get_vectorstore_from_files(pdf_files, thread_id)
                 chat.path = folder_path
             except Exception as e:
                 return Response({'error': f'Erro ao processar o novo PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

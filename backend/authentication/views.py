@@ -12,6 +12,7 @@ from django.contrib.sessions.models import Session
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth.hashers import make_password
+from rest_framework.permissions import IsAdminUser
 import os
 
 class UserView(APIView):
@@ -83,8 +84,25 @@ class UserDetailView(APIView):
         data = {
             'id': user.id,
             'username': user.username,
+            'is_superuser': user.is_superuser
         }
+
+        print(data)
+
         return Response(data, status=status.HTTP_200_OK)
+
+class ListUsersView(APIView):
+    # Apenas superusuários têm permissão para acessar este endpoint
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        # Verifica se o usuário é superusuário
+        if not request.user.is_superuser:
+            return Response({'message': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Lista todos os usuários
+        users = User.objects.all().values('id', 'username', 'is_superuser')
+        return Response(users, status=status.HTTP_200_OK)
 
 class RegisterUserView(APIView):
     def post(self, request):
@@ -114,6 +132,7 @@ class LogoutView(APIView):
             token.blacklist()
             return Response(status=status.HTTP_205_RESET_CONTENT)
         except Exception as e:
+            print(e)
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
 class VerifyTokenView(APIView):
