@@ -81,7 +81,7 @@ function Register() {
             </button>
           </form>
           <p className="mt-6 text-center font-semibold text-gray-700">
-            Não possui conta? <Link to="/cadastrar" className="text-blue-500 hover:underline">Criar Conta</Link>
+            Já possui conta? <Link to="/" className="text-blue-500 hover:underline">Fazer login</Link>
           </p>
         </div>
       </div>

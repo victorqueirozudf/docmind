@@ -4,6 +4,7 @@ import Logo from '../../assets/images/Logo.png';
 import UploadModal from '../features/UploadModal'; // Modal para criar novos chats
 import DeleteChatModal from '../features/DeleteModal'; // Modal para confirmar a exclusão de chats
 import UpdateChatModal from '../features/UpdateChatModal'; 
+import ChatDetailModal from '../features/ChatDetailModal'; 
 import { authAPI, chatAPI } from '../../axios'; // APIs de autenticação e chat
 import { useNavigate } from 'react-router-dom'; // Hook para navegação
 import ReactMarkdown from "react-markdown";
@@ -28,7 +29,15 @@ function ChatInterface() {
   const [isAtBottom, setIsAtBottom] = useState(true); // Verifica se o scroll está no final
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [chatToUpdate, setChatToUpdate] = useState(null);
+  const [showChatDetailModal, setShowChatDetailModal] = useState(false);
 
+  const handleOpenChatDetails = () => {
+    setShowChatDetailModal(true);
+  };
+
+  const handleCloseChatDetails = () => {
+    setShowChatDetailModal(false);
+  };
 
   // Função para converter base64 para UTF-8
   const base64ToUtf8 = (base64) => {
@@ -61,9 +70,7 @@ function ChatInterface() {
     try {
       const formData = new FormData();
       formData.append('chatName', chatName);
-  
-      console.log(chatName + ' - ' + files);
-  
+    
       if (files && files.length > 0) {
         files.forEach((file) => {
           formData.append('pdfs', file); // Usar 'pdfs' para múltiplos arquivos
@@ -218,7 +225,6 @@ function ChatInterface() {
     }
   };
   
-
   /** 
    * Função para confirmar a exclusão de um chat
    * @param {object} chat - Objeto do chat a ser excluído
@@ -441,7 +447,7 @@ function ChatInterface() {
                       
                       {/* Dropdown com opções de atualizar e apagar chat */}
                       {dropdownOpen === chat.thread_id && (
-                        <div ref={dropdownRef} className="absolute z-10 bg-white border rounded-lg shadow-md left-6 top-1 mt-2 ">
+                        <div ref={dropdownRef} className="absolute z-10 bg-white border rounded-lg shadow-md left-6 top-1 mt-2">
                           <button
                             onClick={() => handleUpdateChatOpen(chat)}
                             className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
@@ -468,15 +474,26 @@ function ChatInterface() {
         <div className="flex flex-col w-full h-full bg-white p-5">
           {/* Título do chat */}
           <div className="sticky top-0 flex items-center justify-between border-b pb-5">
-            <h2 className="text-2xl font-extrabold">
+            <h2 className="text-2xl font-extrabold caret-transparent">
               {selectedChat?.chatName || 'Sem conversa selecionada'}
             </h2>
+            <div className={`${selectedChat ? 'block' : 'hidden'} caret-transparent`} >
+              <button
+                onClick={handleOpenChatDetails}
+                className="text-black px-3 py-1 rounded hover:text-gray-800"
+              >
+                <svg className="w-5 h-7" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                  <path d="M8 256a56 56 0 1 1 112 0A56 56 0 1 1 8 256zm160 0a56 56 0 1 1 112 0 56 56 0 1 1 -112 0zm216-56a56 56 0 1 1 0 112 56 56 0 1 1 0-112z" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Área de mensagens */}
           <div ref={scrollRef} className='overflow-y-auto'>
             <div className="flex-1 flex flex-col h-[calc(100vh-220px)] p-5">
-              {selectedChat && selectedChat.messages && selectedChat.messages.length > 0 ? (
+            {selectedChat ? (
+              selectedChat.messages && selectedChat.messages.length > 0 ? (
                 selectedChat.messages.map((message, index) => (
                   <React.Fragment key={index}>
                     {/* Mensagem do usuário */}
@@ -495,7 +512,22 @@ function ChatInterface() {
                 ))
               ) : (
                 <div className="text-gray-500 text-center mt-8">Nenhuma mensagem ainda.</div>
-              )}
+              )
+            ) : (
+              <div className="text-center caret-transparent">
+                <h3 className="text-2xl font-bold text-gray-700">Sem conversa selecionada</h3>
+                <p className="text-gray-500 mt-2">
+                  Selecione uma conversa já criada, clique em Novo Chat, ou{' '}
+                  <span
+                    className="text-gray-700 cursor-pointer underline"
+                    onClick={handleNewChat} // Certifique-se de ter esta função definida
+                  >
+                    clique aqui
+                  </span>{' '}
+                  para criar um novo chat.
+                </p>
+              </div>
+            )}
 
               {isScrollable && (
                 <button
@@ -537,6 +569,15 @@ function ChatInterface() {
           )}
         </div>
       </div>
+
+      {/* Modal de Detalhes do Chat */}
+      {selectedChat && (
+        <ChatDetailModal
+          showModal={showChatDetailModal}
+          onClose={handleCloseChatDetails}
+          chatDetails={selectedChat} // Passa os detalhes do chat selecionado
+        />
+      )}
 
       {/* Modal para criar novo chat */}
       <UploadModal

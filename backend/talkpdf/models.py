@@ -8,6 +8,7 @@ class ChatDetails(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     path = models.TextField()
     chatName = models.TextField()
+    file_names = models.JSONField(default=list)  # Para armazenar os nomes dos arquivos como lista de strings
 
     def __str__(self):
         return self.chatName
