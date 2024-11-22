@@ -114,8 +114,6 @@ class PDFChatView(APIView):
         chat_name = request.data.get('chatName')
         pdf_files = request.FILES.getlist('pdfs')  # Obter lista de PDFs enviados
 
-        print(pdf_files)
-
         if not pdf_files:
             return Response({'error': 'Ao menos um arquivo PDF é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -125,12 +123,16 @@ class PDFChatView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Extraia os nomes dos arquivos
+        file_names = [file.name for file in pdf_files]
+
         # Criar a instância de ChatDetails
         chat = ChatDetails.objects.create(
             user=request.user,
             thread_id=thread_id,
             path=os.path.join('temp', str(thread_id)),  # O controller já configura 'temp_dir'
-            chatName=chat_name
+            chatName=chat_name,
+            file_names=file_names  # Adicione os nomes dos arquivos
         )
 
         # Processar todos os arquivos PDF enviados
@@ -246,22 +248,20 @@ class PDFChatView(APIView):
         if 'chatName' in request.data:
             chat.chatName = chat_name
 
-        # Se um novo PDF for fornecido, processá-lo
+        # Se novos PDFs forem fornecidos, processe-os
         if pdf_files:
-            # Remover os vetores antigos
             try:
                 if os.path.exists(chat.path):
                     shutil.rmtree(chat.path, ignore_errors=True)
-            except Exception as e:
-                return Response({'error': f'Erro ao remover vetores antigos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            # Criar os novos vetores a partir do novo PDF usando o controller
-            # RESOLVER ESSE ERRO: Internal Server Error: /api/chats/put/2e648543-d85b-4271-b3f2-b9094528a814/
-            try:
+                # Extraia os nomes dos arquivos e atualize no banco de dados
+                file_names = [file.name for file in pdf_files]
+                chat.file_names = file_names
+
                 folder_path = get_vectorstore_from_files(pdf_files, thread_id)
                 chat.path = folder_path
             except Exception as e:
-                return Response({'error': f'Erro ao processar o novo PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({'error': f'Erro ao processar os PDFs: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Salvar as alterações no chat
         chat.save()

@@ -87,8 +87,6 @@ class UserDetailView(APIView):
             'is_superuser': user.is_superuser
         }
 
-        print(data)
-
         return Response(data, status=status.HTTP_200_OK)
 
 class ListUsersView(APIView):
@@ -109,7 +107,7 @@ class RegisterUserView(APIView):
         serializer = AuthenticationSerializers(data=request.data)
         if serializer.is_valid():
             username = serializer.validated_data['username']
-            password = serializer.validated_data['password']
+            password = serializer.validated_data.get('password', 'docmind123')
 
             encrypted_password = make_password(password)
 
@@ -120,6 +118,72 @@ class RegisterUserView(APIView):
 
             return Response({'message': 'User created successfully'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class CreateUserView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]  # Apenas superusuários podem criar novos usuários
+
+    def post(self, request):
+        try:
+            username = request.data.get('username')
+            password = request.data.get('password', 'docmind123')  # Define a senha padrão se não for fornecida
+            is_superuser = request.data.get('is_superuser', False)  # Define se o usuário é superusuário
+
+            # Verifica se o nome do usuário já existe
+            if User.objects.filter(username=username).exists():
+                return Response({'message': 'Usuário já existe.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Cria o usuário
+            user = User.objects.create(
+                username=username,
+                password=make_password(password),
+                is_superuser=is_superuser
+            )
+
+            return Response({'message': 'Usuário criado com sucesso.', 'username': user.username}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'message': f'Erro ao criar usuário: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+class ResetPasswordView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def put(self, request, user_id):
+        # Verifica se o usuário que faz a solicitação é um superusuário
+        if not request.user.is_superuser:
+            return Response({'message': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            # Tenta encontrar o usuário pelo ID
+            user = User.objects.get(id=user_id)
+
+            # Define a senha padrão
+            user.set_password('docmind123')
+            user.save()
+
+            return Response({'message': 'Senha redefinida para "docmind123".'}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'message': 'Usuário não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+class DeleteUserView(APIView):
+    # Apenas superusuários podem acessar este endpoint
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def delete(self, request, user_id):
+        # Verifica se o usuário que faz a solicitação é um superusuário
+        if not request.user.is_superuser:
+            return Response({'message': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            # Tenta encontrar o usuário pelo ID
+            user = User.objects.get(id=user_id)
+
+            # Não permite que o superusuário exclua a si mesmo
+            if user == request.user:
+                return Response({'message': 'Você não pode excluir a si mesmo.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            user.delete()  # Exclui o usuário
+            return Response({'message': 'Usuário excluído com sucesso!'}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'message': 'Usuário não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
 
 class LogoutView(APIView):
     permission_classes = (IsAuthenticated,)

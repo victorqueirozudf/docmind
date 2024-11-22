@@ -122,6 +122,15 @@ export const authAPI = {
   // Sign up new user
   signup: (data) => API.post('authentication/signup/', data),
 
+  // Create user (admin only)
+  createUser: (data) => API.post('authentication/create-user/', data),
+
+  // Redefine User Password
+  redefinePassword: (userId) => API.put(`authentication/reset-password/${userId}`),
+
+  // Delete user (admin only)
+  delete: (userId) => API.delete(`authentication/delete/${userId}`),
+
   // Logout user
   logout: (data) => API.post('authentication/logout/', data),
 
