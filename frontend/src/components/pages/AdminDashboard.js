@@ -12,6 +12,7 @@ function AdminDashboard() {
   const [showConfirmationModal, setShowConfirmationModal] = useState(false); // Controla a modal de confirmação
   const [confirmationAction, setConfirmationAction] = useState(null); // Função para ação de confirmação
   const [confirmationMessage, setConfirmationMessage] = useState(''); // Mensagem da modal de confirmação
+  const [confirmationText, setConfirmationText] = useState(''); // Mensagem da modal de confirmação
   const [selectedUserId, setSelectedUserId] = useState(null); // ID do usuário selecionado
 
   useEffect(() => {
@@ -26,7 +27,7 @@ function AdminDashboard() {
         }
       } catch (error) {
         console.error('Erro ao verificar o usuário:', error);
-        navigate('/login'); // Redireciona para o login se não autenticado
+        navigate('/'); // Redireciona para o login se não autenticado
       } finally {
         setLoading(false);
       }
@@ -111,9 +112,10 @@ function AdminDashboard() {
       });
   };
 
-  const openConfirmationModal = (action, message, userId) => {
+  const openConfirmationModal = (action, message, text, userId) => {
     setConfirmationAction(() => action); // Define a ação de confirmação
     setConfirmationMessage(message); // Define a mensagem da modal
+    setConfirmationText(text);
     setSelectedUserId(userId); // Define o ID do usuário
     setShowConfirmationModal(true); // Abre a modal
   };
@@ -123,6 +125,26 @@ function AdminDashboard() {
       confirmationAction(selectedUserId);
     }
     setShowConfirmationModal(false); // Fecha a modal após a confirmação
+  };
+
+  const handleCreateUser = async (username, isSuperuser = false) => {
+    try {
+      const data = {
+        username,
+        is_superuser: isSuperuser, // Determina se o usuário será superusuário
+      };
+  
+      const response = await authAPI.createUser(data);
+      alert(`Usuário ${response.data.username} criado com sucesso!`);
+  
+      // Atualiza a lista de usuários
+      const updatedUsers = await adminAPI.listUsers();
+      setUsers(updatedUsers.data);
+      setShowCreateUserModal(false); // Fecha a modal
+    } catch (error) {
+      console.error('Erro ao criar usuário:', error.response?.data || error.message);
+      alert('Erro ao criar usuário. Verifique os dados e tente novamente.');
+    }
   };
 
   if (loading) {
@@ -168,7 +190,12 @@ function AdminDashboard() {
                       <td className="border px-4 py-2 flex justify-center gap-2">
                         <button
                           onClick={() =>
-                            openConfirmationModal(handleDeleteUser, 'Deseja excluir o usuário?', user.id)
+                            openConfirmationModal(
+                              handleDeleteUser, 
+                              'Deseja excluir o usuário?', 
+                              'Ao excluir o usuário, você excluir todo o histórico do chat dele?',
+                              user.id
+                            )
                           }
                           className=" text-black px-3 py-1 rounded hover:underline"
                         >
@@ -179,6 +206,7 @@ function AdminDashboard() {
                             openConfirmationModal(
                               handleResetPassword,
                               'Deseja redefinir a senha do usuário?',
+                              'Ao redefinir a senha do usuário, você define a senha padrão para ele.',
                               user.id
                             )
                           }
@@ -201,8 +229,9 @@ function AdminDashboard() {
       {/* Modal de Confirmação */}
       {showConfirmationModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-1/4">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-1/3">
             <h2 className="text-xl font-bold mb-4 caret-transparent">{confirmationMessage}</h2>
+            <p className="text-gray-700 mb-6">{confirmationText}</p>
             <div className="flex justify-center gap-2">
               <button
                 onClick={() => setShowConfirmationModal(false)}
@@ -217,6 +246,54 @@ function AdminDashboard() {
                 Confirmar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateUserModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-1/3">
+            <h2 className="text-xl font-bold mb-4 caret-transparent">Criar Novo Usuário</h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const username = e.target.username.value;
+                const isSuperuser = e.target.isSuperuser.checked;
+                handleCreateUser(username, isSuperuser);
+              }}
+            >
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2 caret-inherit">Nome de Usuário</label>
+                <input
+                  type="text"
+                  name="username"
+                  placeholder="Digite o nome do usuário..."
+                  required
+                  className="w-full border px-3 py-2 rounded-lg"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input type="checkbox" name="isSuperuser" className="mr-2 caret-transparent" />
+                  <span className="text-gray-700">Superusuário</span>
+                </label>
+              </div>
+              <div className="flex justify-end gap-2 caret-transparent">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateUserModal(false)}
+                  className=" text-black px-4 py-2 rounded-lg hover:underline"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800"
+                >
+                  Criar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 // src/components/common/Navbar.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from "../../assets/images/Logo.png";
 import ChangePasswordModal from "../features/ChangePasswordModal";
@@ -8,6 +8,7 @@ const Navbar = ({ onLogout, user }) => {
   const navigate = useNavigate();
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null); // Referência para o dropdown
 
   const toggleDropdown = () => {
     setDropdownOpen(!dropdownOpen);
@@ -18,23 +19,43 @@ const Navbar = ({ onLogout, user }) => {
     onLogout();
   };
 
+  const handleClickOutside = (event) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      setDropdownOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (dropdownOpen) {
+      document.addEventListener("click", handleClickOutside);
+    } else {
+      document.removeEventListener("click", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
   return (
-    <div className="sticky z-20 top-0 flex items-center justify-between bg-black text-white px-5 py-3 h-2/6 caret-transparent">
+    <div className="sticky z-20 top-0 flex items-center justify-between bg-black text-white px-5 py-3 h-2/6">
       {/* Logo */}
       <img
         src={Logo}
         alt="Logo"
-        className="custom-navbar-logo-size cursor-pointer"
+        className="custom-navbar-logo-size cursor-pointer caret-transparent"
         onClick={() => navigate("/")} // Navega para a página inicial ao clicar no logo
       />
 
       {/* Dropdown de ações */}
-      <div className="relative">
+      <div className="relative caret-transparent" ref={dropdownRef}>
         <button
           onClick={toggleDropdown}
           className="flex items-center gap-2 rounded-md hover:underline focus:outline-none"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="currentColor" viewBox="0 0 512 512"><path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="currentColor" viewBox="0 0 512 512">
+            <path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z"/>
+          </svg>
           {user?.username || "Usuário"}
           <svg
             className="h-4 w-4"
@@ -49,7 +70,6 @@ const Navbar = ({ onLogout, user }) => {
         {/* Dropdown Menu */}
         {dropdownOpen && (
           <div className="absolute right-0 mt-2 w-48 bg-white text-black border rounded-lg shadow-md z-50">
-            {/* Alterar Senha */}
             {/* Administração (somente para superusuários) */}
             {user?.is_superuser && (
               <button
@@ -63,6 +83,7 @@ const Navbar = ({ onLogout, user }) => {
               </button>
             )}
             
+            {/* Alterar Senha */}
             <button
               onClick={() => {
                 setShowChangePasswordModal(true);
@@ -76,7 +97,7 @@ const Navbar = ({ onLogout, user }) => {
             {/* Logout */}
             <button
               onClick={handleLogout}
-              className="block w-full text-left px-4 py-2 text-red-500 hover:hover:underline"
+              className="block w-full text-left px-4 py-2 text-red-500 hover:underline"
             >
               Logout
             </button>

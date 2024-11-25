@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../../assets/images/Logo.png';
 import CryptoJS from 'crypto-js';
 import { authAPI } from '../../axios.js';
+import ForgotPasswordModal from '../features/ForgotPasswordModal.js';
 
 function Login() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
   // Redireciona para o chat se o usuário já estiver logado
   useEffect(() => {
@@ -138,9 +140,13 @@ function Login() {
               <p className="text-red-500 mb-4">{errorMessage}</p>
             )}
             <div className="text-center mb-6">
-              <a href="/" className="text-sm font-semibold text-blue-500 hover:underline">
-                Esqueci senha
-              </a>
+              <button
+                onClick={() => setShowForgotPasswordModal(true)}
+                className="text-blue-500 hover:underline"
+                type="button"
+              >
+                Esqueceu a senha?
+              </button>
             </div>
             <button
               type="submit"
@@ -154,6 +160,12 @@ function Login() {
           </p>
         </div>
       </div>
+
+      {/* Renderiza a modal de "Esqueceu a senha" */}
+      <ForgotPasswordModal
+        showModal={showForgotPasswordModal}
+        onClose={() => setShowForgotPasswordModal(false)}
+      />
     </div>
   );
 }

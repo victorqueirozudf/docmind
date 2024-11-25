@@ -45,6 +45,11 @@ API.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Evita a renovação de token em requisições específicas, como o login
+    if (error.response?.status === 401 && originalRequest.url.includes('authentication/login')) {
+      return Promise.reject(error); // Retorna o erro sem tentar renovar o token
+    }
+
     // Verifica se o erro é devido ao token expirado
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
@@ -76,7 +81,7 @@ API.interceptors.response.use(
 
       try {
         // Tenta renovar o token de acesso
-        const response = await axios.post('http://localhost:8000/api/token/refresh/', {
+        const response = await axios.post('http://localhost:8000/authentication/verify-token', {
           refresh: refreshToken,
         });
 
@@ -127,6 +132,9 @@ export const authAPI = {
 
   // Redefine User Password
   redefinePassword: (userId) => API.put(`authentication/reset-password/${userId}`),
+
+  // Alterar senha do usuário autenticado
+  changePassword: (data) => API.put('authentication/change-password/', data),
 
   // Delete user (admin only)
   delete: (userId) => API.delete(`authentication/delete/${userId}`),

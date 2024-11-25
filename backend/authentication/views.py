@@ -11,7 +11,7 @@ from django.utils import timezone
 from django.contrib.sessions.models import Session
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from django.contrib.auth.hashers import make_password
+from django.contrib.auth.hashers import make_password, check_password
 from rest_framework.permissions import IsAdminUser
 import os
 
@@ -155,13 +155,42 @@ class ResetPasswordView(APIView):
             # Tenta encontrar o usuário pelo ID
             user = User.objects.get(id=user_id)
 
+            if user == request.user:
+                return Response({'message': 'Você não pode resetar sua senha para o padrão.'}, status=status.HTTP_400_BAD_REQUEST)
+
             # Define a senha padrão
-            user.set_password('docmind123')
+            user.set_password(request.newPassword, 'docmind123')
             user.save()
 
             return Response({'message': 'Senha redefinida para "docmind123".'}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'message': 'Usuário não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+class ChangePasswordView(APIView):
+    """
+    Endpoint para alterar a senha do usuário autenticado.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+        # Obter dados do corpo da requisição
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+
+        # Validações
+        if not current_password or not new_password:
+            return Response({"error": "Todos os campos são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verifica se a senha atual está correta
+        user = request.user
+        if not check_password(current_password, user.password):
+            return Response({"error": "Senha atual incorreta."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Atualiza a senha do usuário
+        user.password = make_password(new_password)
+        user.save()
+
+        return Response({"message": "Senha alterada com sucesso!"}, status=status.HTTP_200_OK)
 
 class DeleteUserView(APIView):
     # Apenas superusuários podem acessar este endpoint

@@ -68,11 +68,6 @@ function Register() {
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-gray-500"
               />
             </div>
-            <div className="text-center mb-6">
-              <a href="/" className="text-sm font-medium text-blue-500 hover:underline">
-                Esqueci senha
-              </a>
-            </div>
             <button
               type="submit"
               className="w-full pt-3 pb-3 font-semibold bg-black text-white py-2 rounded hover:bg-gray-800 transition duration-300"
