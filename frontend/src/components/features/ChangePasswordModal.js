@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { authAPI } from "../../axios";
 
 function ChangePasswordModal({ showModal, onClose }) {
@@ -26,16 +26,30 @@ function ChangePasswordModal({ showModal, onClose }) {
       const response = await authAPI.changePassword({
         current_password: currentPassword,
         new_password: newPassword,
-        confirm_password: confirmPassword,
       });
       setSuccess(response.data.message);
       setCurrentPassword("");
       setNewPassword("");
-      setConfirmPassword("");
+      // Fecha a modal após o sucesso
+      setTimeout(() => {
+        onClose();
+        setSuccess(null);
+      }, 1000); // Opcional: Tempo para o usuário ver a mensagem de sucesso
     } catch (err) {
       setError(err.response?.data?.error || "Erro ao alterar a senha.");
     }
   };
+
+  // Limpa as mensagens e os campos ao fechar a modal
+  useEffect(() => {
+    if (!showModal) {
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setError(null);
+      setSuccess(null);
+    }
+  }, [showModal]);
 
   if (!showModal) return null;
 
@@ -45,51 +59,51 @@ function ChangePasswordModal({ showModal, onClose }) {
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-600 hover:text-black">
           ✖
         </button>
-        <h2 className="text-2xl font-bold mb-4 text-black">Alterar Senha</h2>
+        <h2 className="text-2xl font-bold mb-4 text-black caret-transparent">Alterar Senha</h2>
 
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        {success && <p className="text-green-500 mb-4">{success}</p>}
+        {error && <p className="text-red-500 mb-4 caret-transparent">{error}</p>}
+        {success && <p className="text-green-500 mb-4 caret-transparent">{success}</p>}
 
         <div className="space-y-3">
           <div>
-            <label className="block font-semibold mb-1 text-black">Senha Atual</label>
+            <label className="block font-semibold mb-1 text-black caret-transparent">Senha Atual</label>
             <input
               type="password"
               placeholder="Digite sua senha atual..."
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg text-black"
+              className="w-full px-4 py-2 border rounded-lg text-black caret-inherit"
               required
             />
           </div>
 
           <div>
-            <label className="block font-semibold mb-1 text-black">Nova Senha</label>
+            <label className="block font-semibold mb-1 text-black caret-transparent">Nova Senha</label>
             <input
               type="password"
               placeholder="Digite sua nova senha..."
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg text-black"
+              className="w-full px-4 py-2 border rounded-lg text-black caret-inherit"
               required
             />
           </div>
 
           <div>
-            <label className="block font-semibold mb-1 text-black ">Confirmar Nova Senha</label>
+            <label className="block font-semibold mb-1 text-black caret-transparent">Confirmar Nova Senha</label>
             <input
               type="password"
               placeholder="Digite a sua nova senha novamente..."
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg text-black"
+              className="w-full px-4 py-2 border rounded-lg text-black caret-inherit"
               required
             />
           </div>
 
           <button
             onClick={handleSubmit}
-            className="w-full py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800"
+            className="w-full py-2 bg-black text-white rounded-lg font-semibold caret-transparent hover:bg-gray-800"
           >
             Alterar Senha
           </button>

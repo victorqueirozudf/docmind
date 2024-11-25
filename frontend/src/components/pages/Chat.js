@@ -205,6 +205,20 @@ function ChatInterface() {
     }
   };
 
+  /** 
+   * Hook para adicionar/remover listener de clique para fechar dropdown
+   */
+  useEffect(() => {
+    if (dropdownOpen !== null) {
+      document.addEventListener('click', handleClickOutside);
+    } else {
+      document.removeEventListener('click', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
   const handleUpdateChatOpen = (chat) => {
     setChatToUpdate(chat);
     setShowUpdateModal(true);
@@ -260,20 +274,6 @@ function ChatInterface() {
     setShowDeleteModal(false);
     setChatToDelete(null);
   };
-
-  /** 
-   * Hook para adicionar/remover listener de clique para fechar dropdown
-   */
-  useEffect(() => {
-    if (dropdownOpen !== null) {
-      document.addEventListener('click', handleClickOutside);
-    } else {
-      document.removeEventListener('click', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [dropdownOpen]);
 
   /** 
    * Hook para buscar a lista de chats do backend ao montar o componente
@@ -450,13 +450,13 @@ function ChatInterface() {
                         <div ref={dropdownRef} className="absolute z-10 bg-white border rounded-lg shadow-md left-6 top-1 mt-2">
                           <button
                             onClick={() => handleUpdateChatOpen(chat)}
-                            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hover:underline"
                           >
                             Atualizar
                           </button>
                           <button
                             onClick={() => handleDeleteChatConfirm(chat)}
-                            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                            className="block text-red-500 w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hover:underline"
                           >
                             Apagar
                           </button>
@@ -492,42 +492,42 @@ function ChatInterface() {
           {/* Área de mensagens */}
           <div ref={scrollRef} className='overflow-y-auto'>
             <div className="flex-1 flex flex-col h-[calc(100vh-220px)] p-5">
-            {selectedChat ? (
-              selectedChat.messages && selectedChat.messages.length > 0 ? (
-                selectedChat.messages.map((message, index) => (
-                  <React.Fragment key={index}>
-                    {/* Mensagem do usuário */}
-                    {message.inputContent && (
-                      <div className="p-2 my-2 rounded-lg max-w-3xl bg-black text-white ml-auto text-right">
-                        {message.inputContent}
-                      </div>
-                    )}
-                    {/* Resposta da IA */}
-                    {message.outputContent && (
-                      <div className="p-2 my-2 rounded-lg max-w-3xl bg-gray-200 mr-auto text-left">
-                        <ReactMarkdown>{message.outputContent}</ReactMarkdown>
-                      </div>
-                    )}
-                  </React.Fragment>
-                ))
+              {selectedChat ? (
+                selectedChat.messages && selectedChat.messages.length > 0 ? (
+                  selectedChat.messages.map((message, index) => (
+                    <React.Fragment key={index}>
+                      {/* Mensagem do usuário */}
+                      {message.inputContent && (
+                        <div className="p-2 my-2 rounded-lg max-w-3xl bg-black text-white ml-auto text-right">
+                          {message.inputContent}
+                        </div>
+                      )}
+                      {/* Resposta da IA */}
+                      {message.outputContent && (
+                        <div className="p-2 my-2 rounded-lg max-w-3xl bg-gray-200 mr-auto text-left">
+                          <ReactMarkdown>{message.outputContent}</ReactMarkdown>
+                        </div>
+                      )}
+                    </React.Fragment>
+                  ))
+                ) : (
+                  <div className="text-gray-500 text-center mt-8">Nenhuma mensagem ainda.</div>
+                )
               ) : (
-                <div className="text-gray-500 text-center mt-8">Nenhuma mensagem ainda.</div>
-              )
-            ) : (
-              <div className="text-center caret-transparent">
-                <h3 className="text-2xl font-bold text-gray-700">Sem conversa selecionada</h3>
-                <p className="text-gray-500 mt-2">
-                  Selecione uma conversa já criada, clique em Novo Chat, ou{' '}
-                  <span
-                    className="text-gray-700 cursor-pointer underline"
-                    onClick={handleNewChat} // Certifique-se de ter esta função definida
-                  >
-                    clique aqui
-                  </span>{' '}
-                  para criar um novo chat.
-                </p>
-              </div>
-            )}
+                <div className="text-center caret-transparent">
+                  <h3 className="text-2xl font-bold text-gray-700">Sem conversa selecionada</h3>
+                  <p className="text-gray-500 mt-2">
+                    Selecione uma conversa já criada, clique em Novo Chat, ou{' '}
+                    <span
+                      className="text-gray-700 cursor-pointer underline"
+                      onClick={handleNewChat} // Certifique-se de ter esta função definida
+                    >
+                      clique aqui
+                    </span>{' '}
+                    para criar um novo chat.
+                  </p>
+                </div>
+              )}
 
               {isScrollable && (
                 <button

@@ -1,9 +1,9 @@
-// src/components/UpdateChatModal.jsx
 import React, { useState } from 'react';
 
 function UpdateChatModal({ showModal, onClose, onUpdateChat, initialChatName, threadId }) {
   const [chatName, setChatName] = useState(initialChatName || '');
   const [files, setFiles] = useState([]);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
 
   const handleFileChange = (event) => {
     const selectedFiles = Array.from(event.target.files);
@@ -29,14 +29,13 @@ function UpdateChatModal({ showModal, onClose, onUpdateChat, initialChatName, th
       <div className="flex flex-col gap-5 bg-white rounded-lg w-2/5 p-6 relative">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">ATUALIZAR CHAT</h2>
-          <button onClick={onClose}>
-            <svg
-              className="w-6 h-8 flex-shrink-0 items-center"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 512 512"
+          <h2 className="text-2xl font-bold">Atualizar Chat</h2>
+          <button
+              onClick={onClose}
+              className="absolute top-3 right-3 text-gray-500 hover:text-black"
             >
-              <path d="M376.6 84.5c11.3-13.6 9.5-33.8-4.1-45.1s-33.8-9.5-45.1 4.1L192 206 56.6 43.5C45.3 29.9 25.1 28.1 11.5 39.4S-3.9 70.9 7.4 84.5L150.3 256 7.4 427.5c-11.3 13.6-9.5 33.8 4.1 45.1s33.8 9.5 45.1-4.1L192 306 327.4 468.5c11.3 13.6 31.5 15.4 45.1 4.1s15.4-31.5 4.1-45.1L233.7 256 376.6 84.5z" />
+            <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>
@@ -91,12 +90,38 @@ function UpdateChatModal({ showModal, onClose, onUpdateChat, initialChatName, th
 
         {/* Botão para confirmar a atualização */}
         <button
-          onClick={handleUpdateChat}
+          onClick={() => setShowConfirmationModal(true)}
           className="w-2/5 py-2 self-center bg-black text-white rounded-lg font-semibold hover:bg-gray-800"
         >
           Atualizar Chat
         </button>
       </div>
+
+      {/* Modal de Confirmação */}
+      {showConfirmationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-1/3 p-6">
+            <h3 className="text-xl font-bold mb-4">Atualizar Chat</h3>
+            <p className="text-gray-700 mb-4">
+              Tem certeza de que deseja atualizar os documentos e as respostas deste chat?
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setShowConfirmationModal(false)}
+                className="text-black px-4 py-2 rounded-lg hover:underline"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleUpdateChat}
+                className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
