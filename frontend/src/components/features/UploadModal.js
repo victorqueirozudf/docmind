@@ -148,7 +148,7 @@ function UploadModal({ showModal, onClose, onCreateChat }) {
           className={`w-2/5 py-2 self-center rounded-lg font-semibold text-white ${
             chatName.trim() && files.length > 0
               ? 'bg-black hover:bg-gray-800'
-              : 'bg-gray-400 cursor-not-allowed'
+              : 'bg-black hover:bg-gray-800'
           }`}
           disabled={!chatName.trim() || files.length === 0} // Desativa se não atender os requisitos
         >

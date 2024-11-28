@@ -62,13 +62,13 @@ function ChatInterface() {
 
   /** 
    * Função para criar um novo chat
-   * @param {string} chatName - Nome do novo chat
+   * @param {string} chat_name - Nome do novo chat
    * @param {File} file - Arquivo opcional para upload
    */
-  const handleCreateChat = async (chatName, files) => {
+  const handleCreateChat = async (chat_name, files) => {
     try {
       const formData = new FormData();
-      formData.append('chat_name', chatName);
+      formData.append('chat_name', chat_name);
     
       if (files && files.length > 0) {
         files.forEach((file) => {
@@ -425,7 +425,7 @@ function ChatInterface() {
           </button>
 
           {/* Listagem dos chats */}
-          <div onClick={() => setDropdownOpen(null)}>
+          <div onClick={() => setDropdownOpen(null)} className="flex-1 scrollbar"> {/*overflow-y-auto max-h-[calc(100vh-260px)]*/}
             <p className="text-gray-600 font-medium mb-3">Suas conversas</p>
             <ul>
               {chats.map((chat) => (
@@ -480,6 +480,13 @@ function ChatInterface() {
               ))}
             </ul>
           </div>
+          <div>
+            <a href="">
+              <button className='w-full py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800'>
+                Acessar Telegram
+              </button>
+            </a>
+          </div>
         </div>
 
         {/* Área do chat selecionado */}
@@ -487,7 +494,7 @@ function ChatInterface() {
           {/* Título do chat */}
           <div className="sticky top-0 flex items-center justify-between border-b pb-5">
             <h2 className="text-2xl font-extrabold caret-transparent">
-              {selectedChat?.chatName || 'Sem conversa selecionada'}
+              {selectedChat?.chat_name || 'Sem conversa selecionada'}
             </h2>
             <div className={`${selectedChat ? 'block' : 'hidden'} caret-transparent`} >
               <button
@@ -502,7 +509,7 @@ function ChatInterface() {
           </div>
 
           {/* Área de mensagens */}
-          <div ref={scrollRef} className='overflow-y-auto'>
+          <div ref={scrollRef} className='overflow-y-auto scrollbar'>
             <div className="flex-1 flex flex-col h-[calc(100vh-220px)] p-5">
               {selectedChat ? (
                 selectedChat.messages && selectedChat.messages.length > 0 ? (
@@ -608,7 +615,7 @@ function ChatInterface() {
           showModal={showUpdateModal}
           onClose={handleUpdateModalClose}
           onUpdateChat={handleUpdateChat}
-          initialChatName={chatToUpdate?.chatName || ''}
+          initialChatName={chatToUpdate?.chat_name || ''}
           threadId={chatToUpdate?.thread_id}
         />
       )}
@@ -616,7 +623,7 @@ function ChatInterface() {
       {/* Modal para confirmar exclusão de chat */}
       {showDeleteModal && (
         <DeleteChatModal
-          chatName={chatToDelete?.chatName}
+          chatName={chatToDelete?.chat_name}
           onClose={handleDeleteChatCancel}
           onDelete={handleDeleteChat}
         />

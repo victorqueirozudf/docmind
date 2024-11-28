@@ -19,7 +19,7 @@ function ChatDetailModal({ showModal, onClose, chatDetails }) {
         <div className="space-y-3">
           <div>
             <p className="font-semibold">Nome do Chat:</p>
-            <p className="text-gray-700">{chatDetails.chatName}</p>
+            <p className="text-gray-700">{chatDetails.chat_name}</p>
           </div>
 
           <div>

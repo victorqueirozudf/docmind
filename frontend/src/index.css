@@ -79,3 +79,23 @@
   .delay-400 {
     animation-delay: 0.4s;
   }
+
+  .scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar::-webkit-scrollbar-track {
+    border-radius: 100vh;
+    background: #c9c9c9;
+  }
+
+  .scrollbar::-webkit-scrollbar-thumb {
+    background: #a1a1a1;
+    border-radius: 100vh;
+  }
+
+  .scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #adadad;
+  }
+
