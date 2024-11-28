@@ -481,7 +481,7 @@ function ChatInterface() {
             </ul>
           </div>
           <div>
-            <a href="">
+            <a href="https://t.me/docmind_tcc_bot" target="_blank" rel="noopener noreferrer">
               <button className='w-full py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800'>
                 Acessar Telegram
               </button>
