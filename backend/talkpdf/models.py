@@ -7,11 +7,11 @@ class ChatDetails(models.Model):
     thread_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     path = models.TextField()
-    chatName = models.TextField()
+    chat_name = models.TextField()
     file_names = models.JSONField(default=list)  # Para armazenar os nomes dos arquivos como lista de strings
 
     def __str__(self):
-        return self.chatName
+        return self.chat_name
 
 class ChatCheckpoint(models.Model):
     chat = models.ForeignKey(ChatDetails, on_delete=models.CASCADE, related_name='checkpoints')
@@ -39,16 +39,3 @@ class ChatWrite(models.Model):
 
     def __str__(self):
         return f"Write {self.task_id} at index {self.idx} for Chat {self.chat.chatName}"
-
-"""
-class ChatCost(models.Model):
-    thread_id = models.TextField()
-    thread_ts = models.TextField()
-    input_tokens = models.IntegerField()
-    output_tokens = models.IntegerField()
-    model_cost = models.DecimalField()
-    total_cost = models.DecimalField()
-
-    class Meta:
-        unique_together = (("thread_id", "thread_ts"),)
-"""

@@ -12,7 +12,7 @@ function UpdateChatModal({ showModal, onClose, onUpdateChat, initialChatName, th
 
   const handleUpdateChat = () => {
     const formData = new FormData();
-    formData.append('chatName', chatName);
+    formData.append('chat_name', chatName);
     if (files.length > 0) {
       files.forEach((file) => formData.append('pdfs', file));
     }
@@ -26,7 +26,7 @@ function UpdateChatModal({ showModal, onClose, onUpdateChat, initialChatName, th
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-      <div className="flex flex-col gap-5 bg-white rounded-lg w-2/5 p-6 relative">
+      <div className="flex flex-col gap-5 bg-white rounded-lg w-2/5 p-5 relative">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">Atualizar Chat</h2>
@@ -34,7 +34,7 @@ function UpdateChatModal({ showModal, onClose, onUpdateChat, initialChatName, th
               onClick={onClose}
               className="absolute top-3 right-3 text-gray-500 hover:text-black"
             >
-            <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="w-7 h-7" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
               <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
@@ -87,6 +87,8 @@ function UpdateChatModal({ showModal, onClose, onUpdateChat, initialChatName, th
               : 'Clique ou arraste arquivos para atualizar'}
           </label>
         </div>
+
+        <p className=" text-black mb-6">ATENÇÃO: o nosso sistema utiliza de sistema terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendando não utilizar este sistema.</p>
 
         {/* Botão para confirmar a atualização */}
         <button

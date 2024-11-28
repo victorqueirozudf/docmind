@@ -46,7 +46,7 @@ function Login() {
         mode: CryptoJS.mode.CBC,
         padding: CryptoJS.pad.Pkcs7,
       }).toString();
-
+      
       // Dados para login
       const loginData = { 
         username: username,
@@ -142,7 +142,7 @@ function Login() {
             <div className="text-center mb-6">
               <button
                 onClick={() => setShowForgotPasswordModal(true)}
-                className="text-blue-500 hover:underline"
+                className="text-blue-500 font-semibold hover:underline"
                 type="button"
               >
                 Esqueceu a senha?

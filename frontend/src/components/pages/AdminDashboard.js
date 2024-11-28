@@ -53,7 +53,9 @@ function AdminDashboard() {
 
   const handleDeleteUser = async (userId) => {
     try {
-      await authAPI.delete({ user_id: userId }); // Chama a API para deletar o usuário
+      console.log(userId)
+      // Inclua o `userId` como parte da URL
+      await authAPI.delete(`${userId}`); 
       alert(`Usuário com ID ${userId} foi excluído.`);
       setUsers(users.filter((u) => u.id !== userId)); // Remove da lista local
     } catch (error) {
@@ -64,7 +66,7 @@ function AdminDashboard() {
 
   const handleResetPassword = async (userId) => {
     try {
-      await authAPI.redefinePassword({ user_id: userId }); // Chama a API para redefinir a senha do usuário
+      await authAPI.redefinePassword(`${userId}`); // Chama a API para redefinir a senha do usuário
       alert(`Senha do usuário com ID ${userId} foi redefinida para a senha padrão.`);
     } catch (error) {
       console.error('Erro ao redefinir senha do usuário:', error);
@@ -129,14 +131,10 @@ function AdminDashboard() {
 
   const handleCreateUser = async (username, isSuperuser = false) => {
     try {
-      const data = {
-        username,
-        is_superuser: isSuperuser, // Determina se o usuário será superusuário
-      };
-  
-      const response = await authAPI.createUser(data);
+      const data = { username };
+      console.log("Enviando dados para o backend:", data); // Log para verificar os dados enviados
+      const response = await authAPI.registerUser(data);
       alert(`Usuário ${response.data.username} criado com sucesso!`);
-  
       // Atualiza a lista de usuários
       const updatedUsers = await adminAPI.listUsers();
       setUsers(updatedUsers.data);
@@ -258,8 +256,7 @@ function AdminDashboard() {
               onSubmit={(e) => {
                 e.preventDefault();
                 const username = e.target.username.value;
-                const isSuperuser = e.target.isSuperuser.checked;
-                handleCreateUser(username, isSuperuser);
+                handleCreateUser(username);
               }}
             >
               <div className="mb-4">
@@ -272,12 +269,7 @@ function AdminDashboard() {
                   className="w-full border px-3 py-2 rounded-lg"
                 />
               </div>
-              <div className="mb-4">
-                <label className="flex items-center">
-                  <input type="checkbox" name="isSuperuser" className="mr-2 caret-transparent" />
-                  <span className="text-gray-700">Superusuário</span>
-                </label>
-              </div>
+              <p className='text-gray-700'>Este usuário virá com a senha padrão.</p>
               <div className="flex justify-end gap-2 caret-transparent">
                 <button
                   type="button"

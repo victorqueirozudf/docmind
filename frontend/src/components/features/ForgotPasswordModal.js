@@ -5,13 +5,15 @@ function ForgotPasswordModal({ showModal, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-1/3 p-6 relative shadow-lg">
+      <div className="bg-white rounded-lg w-1/3 p-5 relative shadow-lg">
         {/* Botão para fechar a modal */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-600 hover:text-black"
         >
-          ✖
+          <svg className="w-7 h-7" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
         <h2 className="text-2xl font-bold mb-4 text-black text-center">
           Esqueceu a senha?

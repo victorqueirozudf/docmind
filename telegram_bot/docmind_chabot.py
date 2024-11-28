@@ -115,7 +115,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     print(f"User {user_id} started the bot.")
     await update.message.reply_text(
-        "Olá! Eu sou o seu assistente bot.\n\n"
+        "Olá! Eu sou o seu assistente Docmind. Seja bem-vindo(a)!\n\n"
         "Comandos disponíveis:\n"
         "/subir_documento - Envie um documento para criar um novo chat.\n"
         "/listar_chats - Liste todos os chats disponíveis.\n"
@@ -153,7 +153,7 @@ async def upload_document_receive_chat_name(update: Update, context: ContextType
     context.user_data['chat_name'] = chat_name
     print(f"User {user_id} set the chat name to: {chat_name}")
     await update.message.reply_text(
-        "Nome do chat recebido com sucesso!\n\nPor favor, envie o documento que deseja subir (PDF, DOCX, etc.)."
+        "Nome do chat recebido com sucesso!\n\nPor favor, envie o documento que deseja subir (PDF).\n\nATENÇÃO: o nosso sistema utiliza de sistema terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendando não utilizar este sistema."
     )
     return WAITING_FOR_DOCUMENT
 
@@ -172,7 +172,7 @@ async def upload_document_receive_document(update: Update, context: ContextTypes
         print(f"User {user_id} sent a document with MIME type: {file_type}")
         if file_type not in ['application/pdf',
                              'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
-            await update.message.reply_text("Por favor, envie um arquivo PDF ou DOCX válido.")
+            await update.message.reply_text("Por favor, envie um arquivo PDF válido.")
             return WAITING_FOR_DOCUMENT
         # Store document information in context for future use
         context.user_data['document'] = document
@@ -184,7 +184,7 @@ async def upload_document_receive_document(update: Update, context: ContextTypes
             'Authorization': f'Bearer {JWT_TOKEN}'
         }
         data = {
-            'chatName': chat_name
+            'chat_name': chat_name
         }
 
         # Download the file
@@ -195,7 +195,7 @@ async def upload_document_receive_document(update: Update, context: ContextTypes
             print(f"File downloaded to {pdf_path}")
         except Exception as e:
             print(f"Error downloading the file: {e}")
-            await update.message.reply_text("Ocorreu um erro ao baixar o documento. Por favor, tente novamente.")
+            await update.message.reply_text("Ocorreu um erro ao processar o documento. Por favor, tente novamente.")
             return WAITING_FOR_DOCUMENT
 
         files = {
@@ -223,7 +223,7 @@ async def upload_document_receive_document(update: Update, context: ContextTypes
                     await update.message.reply_text("Falha ao obter o ID do chat na resposta da API.")
                     return WAITING_FOR_DOCUMENT
                 context.user_data['chat_id'] = chat_id  # Store the chat_id
-                await update.message.reply_text(f"Chat '{chat_name}' criado com sucesso!\nID do Chat: {chat_id}")
+                await update.message.reply_text(f"Chat '{chat_name}' criado com sucesso!\nID do Chat: {chat_id}. Para acessá-lo, digite /listar_chats")
                 print(f"Chat created: {chat}")
             elif response.status_code == 400:
                 # Check if the error is due to chat already existing
@@ -275,7 +275,7 @@ async def listar_chats_start(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 # Build a message listing the chats
                 message = "Chats disponíveis:\n"
                 for idx, chat in enumerate(chats, start=1):
-                    message += f"{idx}. {chat.get('chatName')} (ID: {chat.get('thread_id')})\n"
+                    message += f"{idx}. {chat.get('chat_name')} (ID: {chat.get('thread_id')})\n"
                 message += "\nPor favor, envie o número correspondente ao chat que deseja selecionar."
                 await update.message.reply_text(message)
                 # Store the list of chats in context for future reference
@@ -324,7 +324,7 @@ async def list_chats_selection(update: Update, context: ContextTypes.DEFAULT_TYP
 
     context.user_data['chat_id'] = chat_id
     await update.message.reply_text(
-        f"Chat '{selected_chat.get('chatName')}' selecionado com sucesso!\nID do Chat: {chat_id}\n\n"
+        f"Chat '{selected_chat.get('chat_name')}' selecionado com sucesso!\nID do Chat: {chat_id}\n\n"
         "Você está agora no modo de perguntas. Envie a sua pergunta ou /cancel para sair."
     )
     print(f"User {user_id} selected chat_id {chat_id} via /listar_chats.")
@@ -453,7 +453,7 @@ async def atualizar_chat_start(update: Update, context: ContextTypes.DEFAULT_TYP
                 # Construir uma mensagem listando os chats
                 message = "Chats disponíveis para atualizar:\n"
                 for idx, chat in enumerate(chats, start=1):
-                    message += f"{idx}. {chat.get('chatName')} (ID: {chat.get('thread_id')})\n"
+                    message += f"{idx}. {chat.get('chat_name')} (ID: {chat.get('thread_id')})\n"
                 message += "\nPor favor, envie o número correspondente ao chat que deseja atualizar."
                 await update.message.reply_text(message)
                 # Armazenar a lista de chats no contexto para referência futura
@@ -493,7 +493,7 @@ async def atualizar_chat_selection(update: Update, context: ContextTypes.DEFAULT
 
     selected_chat = chats[selection - 1]
     chat_id = selected_chat.get('thread_id')
-    chat_name = selected_chat.get('chatName')
+    chat_name = selected_chat.get('chat_name')
 
     if not chat_id:
         # Se 'thread_id' não estiver presente, logar o objeto completo para depuração
@@ -535,7 +535,7 @@ async def atualizar_chat_choose_update(update: Update, context: ContextTypes.DEF
         await update.message.reply_text("Por favor, envie o novo nome para o chat:")
         return UPDATE_NAME
     elif choice == '2':
-        await update.message.reply_text("Por favor, envie o novo arquivo PDF para o chat:")
+        await update.message.reply_text("Por favor, envie o novo arquivo PDF para o chat:\n\nATENÇÃO: o nosso sistema utiliza de sistema terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendando não utilizar este sistema.")
         return UPDATE_DOCUMENT
     elif choice == '3':
         await update.message.reply_text("Por favor, envie o novo nome para o chat:")
@@ -558,7 +558,7 @@ async def atualizar_chat_new_name(update: Update, context: ContextTypes.DEFAULT_
     choice = context.user_data.get('update_choice')
 
     if choice in ['2', '3']:
-        await update.message.reply_text("Por favor, envie o novo arquivo PDF para o chat:")
+        await update.message.reply_text("Por favor, envie o novo arquivo PDF para o chat:\n\nATENÇÃO: o nosso sistema utiliza de sistema terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendando não utilizar este sistema.")
         return UPDATE_DOCUMENT
     else:
         # Se apenas o nome está sendo atualizado, proceder para confirmação
@@ -629,7 +629,7 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
         files = {}
 
         if new_chat_name:
-            data['chatName'] = new_chat_name
+            data['chat_name'] = new_chat_name
 
         if new_pdf_document:
             try:
@@ -662,7 +662,7 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
 
             if response.status_code == 200:
                 updated_chat = response.json()
-                await update.message.reply_text(f"Chat '{updated_chat.get('chatName')}' atualizado com sucesso!")
+                await update.message.reply_text(f"Chat '{updated_chat.get('chat_name')}' atualizado com sucesso! Digite /listar_chats para conversar com seu pdf.")
                 print(f"Chat updated successfully: {updated_chat}")
             else:
                 try:
@@ -722,7 +722,7 @@ async def apagar_chat_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Build a message listing the chats
                 message = "Chats disponíveis para apagar:\n"
                 for idx, chat in enumerate(chats, start=1):
-                    message += f"{idx}. {chat.get('chatName')} (ID: {chat.get('thread_id')})\n"
+                    message += f"{idx}. {chat.get('chat_name')} (ID: {chat.get('thread_id')})\n"
                 message += "\nPor favor, envie o número correspondente ao chat que deseja apagar."
                 await update.message.reply_text(message)
                 # Store the list of chats in context for future reference
@@ -762,7 +762,7 @@ async def apagar_chat_selection(update: Update, context: ContextTypes.DEFAULT_TY
 
     selected_chat = chats[selection - 1]
     chat_id = selected_chat.get('thread_id')
-    chat_name = selected_chat.get('chatName')
+    chat_name = selected_chat.get('chat_name')
 
     if not chat_id:
         # If 'thread_id' is not present, log the entire chat object for debugging
@@ -868,7 +868,7 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
         files = {}
 
         if new_chat_name:
-            data['chatName'] = new_chat_name
+            data['chat_name'] = new_chat_name
 
         if new_pdf_document:
             try:
@@ -901,7 +901,7 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
 
             if response.status_code == 200:
                 updated_chat = response.json()
-                await update.message.reply_text(f"Chat '{updated_chat.get('chatName')}' atualizado com sucesso!")
+                await update.message.reply_text(f"Chat '{updated_chat.get('chat_name')}' atualizado com sucesso! Digite /listar_chats para conversar com seu pdf.")
                 print(f"Chat updated successfully: {updated_chat}")
             else:
                 try:

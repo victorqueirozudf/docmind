@@ -107,7 +107,10 @@ class RegisterUserView(APIView):
         serializer = AuthenticationSerializers(data=request.data)
         if serializer.is_valid():
             username = serializer.validated_data['username']
+            
             password = serializer.validated_data.get('password', 'docmind123')
+
+            print(f"Usuário: {username}, Senha: {password}")
 
             encrypted_password = make_password(password)
 
@@ -118,30 +121,6 @@ class RegisterUserView(APIView):
 
             return Response({'message': 'User created successfully'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class CreateUserView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminUser]  # Apenas superusuários podem criar novos usuários
-
-    def post(self, request):
-        try:
-            username = request.data.get('username')
-            password = request.data.get('password', 'docmind123')  # Define a senha padrão se não for fornecida
-            is_superuser = request.data.get('is_superuser', False)  # Define se o usuário é superusuário
-
-            # Verifica se o nome do usuário já existe
-            if User.objects.filter(username=username).exists():
-                return Response({'message': 'Usuário já existe.'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Cria o usuário
-            user = User.objects.create(
-                username=username,
-                password=make_password(password),
-                is_superuser=is_superuser
-            )
-
-            return Response({'message': 'Usuário criado com sucesso.', 'username': user.username}, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({'message': f'Erro ao criar usuário: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
 class ResetPasswordView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -159,7 +138,8 @@ class ResetPasswordView(APIView):
                 return Response({'message': 'Você não pode resetar sua senha para o padrão.'}, status=status.HTTP_400_BAD_REQUEST)
 
             # Define a senha padrão
-            user.set_password(request.newPassword, 'docmind123')
+            user.set_password('docmind123')
+            print(user.password)
             user.save()
 
             return Response({'message': 'Senha redefinida para "docmind123".'}, status=status.HTTP_200_OK)
