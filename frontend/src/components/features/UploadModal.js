@@ -57,8 +57,8 @@ function UploadModal({ showModal, onClose, onCreateChat }) {
   if (!showModal) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-      <div className="flex flex-col gap-5 bg-white rounded-lg w-2/5 p-5 relative">
+    <div className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300 ${showModal ? "opacity-100" : "opacity-0"}`}>
+      <div className={`flex flex-col gap-5 bg-white rounded-lg w-2/5 p-5 relative`}>
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">Novo Chat</h2>
           <button

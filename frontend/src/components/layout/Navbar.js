@@ -5,6 +5,7 @@ import Logo from "../../assets/images/Logo.png";
 import ChangePasswordModal from "../features/ChangePasswordModal";
 import { authAPI } from '../../axios'; // Certifique-se de importar authAPI
 
+
 const Navbar = ({ user }) => { // Remova a prop onLogout
   const navigate = useNavigate();
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -79,7 +80,7 @@ const Navbar = ({ user }) => { // Remova a prop onLogout
         src={Logo}
         alt="Logo"
         className="custom-navbar-logo-size cursor-pointer caret-transparent"
-        onClick={() => navigate("/")} // Navega para a página inicial ao clicar no logo
+        onClick={() => navigate("/chat")} // Navega para a página inicial ao clicar no logo
       />
 
       {/* Dropdown de ações */}

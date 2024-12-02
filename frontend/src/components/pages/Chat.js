@@ -5,7 +5,6 @@ import DeleteChatModal from '../features/DeleteModal';
 import UpdateChatModal from '../features/UpdateChatModal'; 
 import ChatDetailModal from '../features/ChatDetailModal'; 
 import { authAPI, chatAPI } from '../../axios'; 
-import { useNavigate } from 'react-router-dom'; 
 import ReactMarkdown from "react-markdown";
 import Navbar from '../layout/Navbar'
 
