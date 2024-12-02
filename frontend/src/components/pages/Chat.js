@@ -324,12 +324,12 @@ function ChatInterface() {
     const refreshToken = localStorage.getItem('refresh'); // Obtém o token de refresh
 
     if (!refreshToken) {
+      window.alert("Ops, ocorreu um problema.")
       console.error('Token de refresh não encontrado.');
-      // Remove tokens existentes e redireciona
       localStorage.removeItem('access');
       localStorage.removeItem('refresh');
       localStorage.removeItem('sessionid');
-      navigate('/');
+      navigate('/login');
       return;
     }
 
@@ -344,9 +344,8 @@ function ChatInterface() {
         localStorage.removeItem('access');
         localStorage.removeItem('refresh');
         localStorage.removeItem('sessionid');
-
-        // Redireciona para a página de login
-        navigate('/');
+        window.alert("Logout realizado com sucesso. Até breve!")
+        navigate('/login');
       })
       .catch((error) => {
         // Mesmo se o logout falhar, remove tokens e redireciona
@@ -354,7 +353,7 @@ function ChatInterface() {
         localStorage.removeItem('refresh');
         localStorage.removeItem('sessionid');
 
-        navigate('/');
+        navigate('/login');
 
         console.error('Erro ao fazer logout:', error);
       });

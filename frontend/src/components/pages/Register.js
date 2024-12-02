@@ -16,7 +16,7 @@ function Register() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Lógica de cadastro aqui
+    window.alert("Usuário registrado com sucesso. Bem-vindo(a)!");
     navigate('/login');
   };
 

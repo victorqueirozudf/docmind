@@ -65,6 +65,8 @@ function Login() {
           if (response.data.sessionid) {
             localStorage.setItem('sessionid', response.data.sessionid);
           }
+          
+          window.alert("Login realizado com sucesso!");
 
           // Navegar para a página de chat
           navigate('/chat');

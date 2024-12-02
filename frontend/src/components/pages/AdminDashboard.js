@@ -27,7 +27,7 @@ function AdminDashboard() {
         }
       } catch (error) {
         console.error('Erro ao verificar o usuário:', error);
-        navigate('/'); // Redireciona para o login se não autenticado
+        navigate('/login'); // Redireciona para o login se não autenticado
       } finally {
         setLoading(false);
       }
@@ -83,7 +83,7 @@ function AdminDashboard() {
       localStorage.removeItem('access');
       localStorage.removeItem('refresh');
       localStorage.removeItem('sessionid');
-      navigate('/');
+      navigate('/login');
       return;
     }
 
@@ -100,7 +100,7 @@ function AdminDashboard() {
         localStorage.removeItem('sessionid');
 
         // Redireciona para a página de login
-        navigate('/');
+        navigate('/login');
       })
       .catch((error) => {
         // Mesmo se o logout falhar, remove tokens e redireciona
@@ -108,7 +108,7 @@ function AdminDashboard() {
         localStorage.removeItem('refresh');
         localStorage.removeItem('sessionid');
 
-        navigate('/');
+        navigate('/login');
 
         console.error('Erro ao fazer logout:', error);
       });
