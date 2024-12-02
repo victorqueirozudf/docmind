@@ -74,46 +74,6 @@ function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    const refreshToken = localStorage.getItem('refresh'); // Obtém o token de refresh
-
-    if (!refreshToken) {
-      console.error('Token de refresh não encontrado.');
-      // Remove tokens existentes e redireciona
-      localStorage.removeItem('access');
-      localStorage.removeItem('refresh');
-      localStorage.removeItem('sessionid');
-      navigate('/login');
-      return;
-    }
-
-    const logoutData = {
-      refresh_token: refreshToken, // Dados para logout
-    };
-
-    authAPI
-      .logout(logoutData) // Chama a API de logout
-      .then((response) => {
-        // Remove tokens do localStorage
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('sessionid');
-
-        // Redireciona para a página de login
-        navigate('/login');
-      })
-      .catch((error) => {
-        // Mesmo se o logout falhar, remove tokens e redireciona
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('sessionid');
-
-        navigate('/login');
-
-        console.error('Erro ao fazer logout:', error);
-      });
-  };
-
   const openConfirmationModal = (action, message, text, userId) => {
     setConfirmationAction(() => action); // Define a ação de confirmação
     setConfirmationMessage(message); // Define a mensagem da modal
@@ -138,7 +98,7 @@ function AdminDashboard() {
       // Atualiza a lista de usuários
       const updatedUsers = await adminAPI.listUsers();
       setUsers(updatedUsers.data);
-      setShowCreateUserModal(false); // Fecha a modal
+      setShowCreateUserModal(false); // Fecha o modal
     } catch (error) {
       console.error('Erro ao criar usuário:', error.response?.data || error.message);
       alert('Erro ao criar usuário. Verifique os dados e tente novamente.');
@@ -151,7 +111,7 @@ function AdminDashboard() {
 
   return (
     <>
-      <Navbar onLogout={handleLogout} user={user} />
+      <Navbar user={user} /> {/* Remova a prop onLogout */}
 
       <div className="h-full flex flex-col p-5">
         <h1 className="text-3xl font-bold mb-4 caret-transparent">Painel de Administrador</h1>

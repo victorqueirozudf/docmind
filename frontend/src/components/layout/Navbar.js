@@ -3,8 +3,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Logo from "../../assets/images/Logo.png";
 import ChangePasswordModal from "../features/ChangePasswordModal";
+import { authAPI } from '../../axios'; // Certifique-se de importar authAPI
 
-const Navbar = ({ onLogout, user }) => {
+const Navbar = ({ user }) => { // Remova a prop onLogout
   const navigate = useNavigate();
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -14,9 +15,43 @@ const Navbar = ({ onLogout, user }) => {
     setDropdownOpen(!dropdownOpen);
   };
 
-  const handleLogout = () => {
-    setDropdownOpen(false);
-    onLogout();
+  const handleLogout = () => { // Mova a função de logout para aqui
+    const refreshToken = localStorage.getItem('refresh'); // Obtém o token de refresh
+
+    if (!refreshToken) {
+      window.alert("Ops, ocorreu um problema.");
+      console.error('Token de refresh não encontrado.');
+      localStorage.removeItem('access');
+      localStorage.removeItem('refresh');
+      localStorage.removeItem('sessionid');
+      navigate('/login');
+      return;
+    }
+
+    const logoutData = {
+      refresh_token: refreshToken, // Dados para logout
+    };
+
+    authAPI
+      .logout(logoutData) // Chama a API de logout
+      .then((response) => {
+        // Remove tokens do localStorage
+        localStorage.removeItem('access');
+        localStorage.removeItem('refresh');
+        localStorage.removeItem('sessionid');
+        window.alert("Logout realizado com sucesso. Até breve!");
+        navigate('/login');
+      })
+      .catch((error) => {
+        // Mesmo se o logout falhar, remove tokens e redireciona
+        localStorage.removeItem('access');
+        localStorage.removeItem('refresh');
+        localStorage.removeItem('sessionid');
+
+        navigate('/login');
+
+        console.error('Erro ao fazer logout:', error);
+      });
   };
 
   const handleClickOutside = (event) => {

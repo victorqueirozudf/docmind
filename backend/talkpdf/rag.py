@@ -2,7 +2,7 @@
 
 import os
 import io
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain.text_splitter import CharacterTextSplitter
 from langgraph.graph import START, MessagesState, StateGraph
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -25,9 +25,9 @@ def num_tokens_from_string(string: str) -> int:
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
-"""RESPONSÁVEIS POR CRIAR OS ARQUIVOS PARA PESQUISA DE DADOS"""
 def get_vectorstore_from_files(pdf_docs, thread_id):
-    text = ""
+    chunks = []
+    metadatas = []
 
     # Verifica se é uma lista de arquivos ou um único arquivo
     if not isinstance(pdf_docs, list):
@@ -36,10 +36,12 @@ def get_vectorstore_from_files(pdf_docs, thread_id):
     print(f"Recebendo {len(pdf_docs)} documentos PDF para o thread_id {thread_id}.\n")
 
     for pdf in pdf_docs:
-        # Verifica se o pdf tem o atributo 'name', caso contrário, assume que é um objeto bytes
+        # Determina o nome do arquivo
         if hasattr(pdf, 'name'):
-            print(f"Lendo arquivo: {pdf.name}")
+            file_name = pdf.name
+            print(f"Lendo arquivo: {file_name}")
         else:
+            file_name = "arquivo_anônimo"
             print(f"Lendo arquivo anônimo (sem nome), tamanho: {len(pdf)} bytes")
 
         # Lê o conteúdo do arquivo em memória
@@ -49,25 +51,35 @@ def get_vectorstore_from_files(pdf_docs, thread_id):
         # Processa o PDF
         pdf_reader = PdfReader(pdf_stream)
 
-        for page in pdf_reader.pages:
+        for page_number, page in enumerate(pdf_reader.pages, start=1):
             page_text = page.extract_text()
-            text += page_text
+            if not page_text:
+                continue  # Pula páginas sem texto
 
-    # Split do texto em chunks
-    text_splitter = CharacterTextSplitter(
-        separator="\n",
-        chunk_size=1024,
-        chunk_overlap=256,
-        length_function=len
-    )
+            # Split do texto em chunks
+            text_splitter = CharacterTextSplitter(
+                separator="\n",
+                chunk_size=1024,
+                chunk_overlap=256,
+                length_function=len
+            )
+            page_chunks = text_splitter.split_text(page_text)
 
-    chunks = text_splitter.split_text(text)
-
+            # Adiciona os chunks e seus metadados
+            for chunk in page_chunks:
+                cleaned_chunk = chunk.replace('\xa0', ' ').strip()
+                if cleaned_chunk:  # Verifica se o chunk não está vazio
+                    chunks.append(cleaned_chunk)
+                    metadatas.append({
+                        "source": file_name,
+                        "page": page_number
+                        # Adicione outros metadados aqui, se necessário
+                    })
     # Criação dos embeddings
     embeddings = OpenAIEmbeddings()
 
-    # Criação da store FAISS
-    vectorstore = FAISS.from_texts(texts=chunks, embedding=embeddings)
+    # Criação da store FAISS com metadados
+    vectorstore = FAISS.from_texts(texts=chunks, embedding=embeddings, metadatas=metadatas)
 
     # Define o caminho da pasta e do arquivo FAISS
     folder_path = os.path.join(temp_dir, str(thread_id))
@@ -81,10 +93,11 @@ def get_vectorstore_from_files(pdf_docs, thread_id):
     vectorstore.save_local(folder_path)
     print(f"Vetores salvos em {folder_path}\n")
 
-    return folder_path  # Retorna ambos os valores
+    return folder_path  # Retorna o caminho do índice FAISS
 
 # Função para carregar o vetor do arquivo FAISS ou criar se não existir
 def load_vectorstore_from_file(thread_id):
+    # definido caminho para o vetor
     folder_path = os.path.join(temp_dir, thread_id)
     file_path = os.path.join(folder_path, "index.pkl")
 
@@ -106,19 +119,19 @@ def call_model(state: MessagesState, vectorstore, question):
 
     # Filtrar apenas HumanMessage
     human_messages = [msg.content for msg in state['messages'] if isinstance(msg, HumanMessage)]
+    ai_messages = [msg.content for msg in state['messages'] if isinstance(msg, AIMessage)][-3:]
 
     retriever = vectorstore.as_retriever()
     retrieved_docs = retriever.invoke(state["messages"][-1].content)
 
-    # Ordena os documentos pela ordem de inserção, assumindo que eles têm um campo 'insertion_order'
-    sorted_docs = sorted(retrieved_docs, key=lambda doc: doc.metadata.get('insertion_order', 0))
-
-    print(sorted_docs)
-
     # Concatene os resultados dos documentos recuperados em ordem
-    pdf_response = "\n".join([doc.page_content for doc in sorted_docs])
+    pdf_response = "\n\n".join([
+    f"**Fonte:** {doc.metadata.get('source', 'Desconhecido')} - **Página:** {doc.metadata.get('page', 'N/A')}\n{doc.page_content}"
+        for doc in retrieved_docs
+    ])
 
-    input_user = "Históricos de mensagens passadas: \n " + str(human_messages) + "\n" + str([HumanMessage(content=pdf_response)])
+
+    input_user = "Históricos de mensagens passadas: \n " + str(human_messages)
 
     prompt = [
         (
@@ -127,21 +140,29 @@ def call_model(state: MessagesState, vectorstore, question):
         ),
         (
             "human",
-            f"Pergunta: {question}\n\nAqui está um trecho do documento:\n\n{input_user}\n\nPor favor, responda à pergunta com base no documento de forma direta."
+            f"""
+                ***Pergunta:*** {question}\n\n
+                ***Aqui está um trecho do documento:***\n{pdf_response}\n
+                ***Históricos de perguntas passadas:***\n {input_user}
+                ***Históricos das últimas três respostas do chatbot:***\n {ai_messages}
+                Por favor, responda à pergunta com base no documento de forma direta.
+            """
         )
     ]
 
+    print(prompt)
+    
     response = model.invoke(prompt)
 
-    input_tokens = num_tokens_from_string(prompt[0][1]) + num_tokens_from_string(prompt[1][1])
-    output_tokens = num_tokens_from_string(response.content)
+#    input_tokens = num_tokens_from_string(prompt[0][1]) + num_tokens_from_string(prompt[1][1])
+#   output_tokens = num_tokens_from_string(response.content)
 
-    price_per_one_million = 0.150
+#    price_per_one_million = 0.150
 
-    print(f"""Total de tokens e valor total:
-Input: {input_tokens} - US${(input_tokens * price_per_one_million)/1000000:.8f}
-Output: {output_tokens} - US${(output_tokens * price_per_one_million)/1000000:.8f}
-Total tokens: {input_tokens + output_tokens} - Total gasto: US${((input_tokens + output_tokens) * price_per_one_million)/1000000:.8f}\n\n""", end="")
+    #print(f"""Total de tokens e valor total:
+#Input: {input_tokens} - US${(input_tokens * price_per_one_million)/1000000:.8f}
+#Output: {output_tokens} - US${(output_tokens * price_per_one_million)/1000000:.8f}
+#Total tokens: {input_tokens + output_tokens} - Total gasto: US${((input_tokens + output_tokens) * price_per_one_million)/1000000:.8f}\n\n""", end="")
 
     return {"messages": response}
 

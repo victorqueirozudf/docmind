@@ -10,7 +10,6 @@ import ReactMarkdown from "react-markdown";
 import Navbar from '../layout/Navbar'
 
 function ChatInterface() {
-  const navigate = useNavigate(); // Hook para redirecionamento
   const dropdownRef = useRef(null); // Referência para detectar cliques fora do dropdown
 
   // Estados para gerenciar dados e UI
@@ -30,15 +29,25 @@ function ChatInterface() {
   const [chatToUpdate, setChatToUpdate] = useState(null);
   const [showChatDetailModal, setShowChatDetailModal] = useState(false);
 
+  /**
+   * Função para abrir o modal de detalhes do chat selecionado
+   */
   const handleOpenChatDetails = () => {
     setShowChatDetailModal(true);
   };
 
+  /**
+   * Função para fechar o modal de detalhes do chat
+   */
   const handleCloseChatDetails = () => {
     setShowChatDetailModal(false);
   };
 
-  // Função para converter base64 para UTF-8
+  /**
+   * Função para converter base64 para UTF-8
+   * @param {string} base64 - String codificada em base64
+   * @returns {string} - String decodificada em UTF-8
+   */
   const base64ToUtf8 = (base64) => {
     const binaryStr = atob(base64);
     const bytes = Uint8Array.from(binaryStr, char => char.charCodeAt(0));
@@ -46,24 +55,24 @@ function ChatInterface() {
     return decoder.decode(bytes);
   };
     
-  /** 
+  /**
    * Função para abrir o modal de criação de novo chat
    */
   const handleNewChat = () => {
     setShowModal(true);
   };
 
-  /** 
+  /**
    * Função para fechar o modal de criação de novo chat
    */
   const handleCloseModal = () => {
     setShowModal(false);
   };
 
-  /** 
+  /**
    * Função para criar um novo chat
    * @param {string} chat_name - Nome do novo chat
-   * @param {File} file - Arquivo opcional para upload
+   * @param {File[]} files - Arquivos opcionais para upload
    */
   const handleCreateChat = async (chat_name, files) => {
     try {
@@ -142,19 +151,17 @@ function ChatInterface() {
     }
   };
   
-  /** 
- * Função para enviar uma nova mensagem no chat selecionado
- */
+  /**
+   * Função para enviar uma nova mensagem no chat selecionado
+   */
   const handleSendMessage = async () => {
     if (selectedChat && newMessage.trim()) {
-      // Cria a mensagem do usuário localmente
       const userMessage = {
         id: Date.now(), // ID temporário
         inputContent: newMessage, // A mensagem enviada pelo usuário
         sender: 'user',
       };
 
-      // Atualiza as mensagens localmente
       setSelectedChat((prevChat) => ({
         ...prevChat,
         messages: [...(prevChat.messages || []), userMessage],
@@ -163,19 +170,16 @@ function ChatInterface() {
       setNewMessage(''); // Limpa o campo de entrada
 
       try {
-        // Envia a pergunta para o backend
         const response = await chatAPI.sendQuestionToChat(selectedChat.thread_id, {
           question: newMessage,
         });
 
-        // Adiciona a resposta da API
         const apiMessage = {
           id: Date.now() + 1, // ID temporário para a resposta
           outputContent: response.data.answer, // Resposta da API
           sender: 'api',
         };
 
-        // Atualiza as mensagens com a resposta do backend
         setSelectedChat((prevChat) => ({
           ...prevChat,
           messages: [...prevChat.messages, apiMessage],
@@ -186,48 +190,28 @@ function ChatInterface() {
     }
   };
 
-  /** 
-   * Função para alternar a visibilidade do dropdown de opções do chat
-   * @param {number} id - ID do chat
+  /**
+   * Função para abrir o modal de atualização do chat selecionado
+   * @param {object} chat - Objeto do chat a ser atualizado
    */
-  const toggleDropdown = (id) => {
-    setDropdownOpen(dropdownOpen === id ? null : id);
-  };
-
-  /** 
-   * Função para fechar o dropdown ao clicar fora dele
-   * @param {Event} event - Evento de clique
-   */
-  const handleClickOutside = (event) => {
-    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-      setDropdownOpen(null);
-    }
-  };
-
-  /** 
-   * Hook para adicionar/remover listener de clique para fechar dropdown
-   */
-  useEffect(() => {
-    if (dropdownOpen !== null) {
-      document.addEventListener('click', handleClickOutside);
-    } else {
-      document.removeEventListener('click', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [dropdownOpen]);
-
   const handleUpdateChatOpen = (chat) => {
     setChatToUpdate(chat);
     setShowUpdateModal(true);
   };
 
+  /**
+   * Função para fechar o modal de atualização de chat
+   */
   const handleUpdateModalClose = () => {
     setShowUpdateModal(false);
     setChatToUpdate(null);
   };
 
+  /**
+   * Função para atualizar um chat existente
+   * @param {number} threadId - ID do chat a ser atualizado
+   * @param {FormData} formData - Dados do formulário para atualização
+   */
   const handleUpdateChat = async (threadId, formData) => {
     try {
       const response = await chatAPI.updateChat(threadId, formData); // Chama o método da API
@@ -251,7 +235,7 @@ function ChatInterface() {
     }
   };
     
-  /** 
+  /**
    * Função para confirmar a exclusão de um chat
    * @param {object} chat - Objeto do chat a ser excluído
    */
@@ -260,8 +244,16 @@ function ChatInterface() {
     setShowDeleteModal(true);
   };
 
-  /** 
-   * Função para deletar um chat
+  /**
+   * Função para cancelar a exclusão de um chat
+   */
+  const handleDeleteChatCancel = () => {
+    setShowDeleteModal(false);
+    setChatToDelete(null);
+  };
+
+  /**
+   * Função para deletar um chat selecionado
    */
   const handleDeleteChat = async () => {
     try {
@@ -279,15 +271,39 @@ function ChatInterface() {
     }
   };
 
-  /** 
-   * Função para cancelar a exclusão de um chat
+  /**
+   * Função para alternar a visibilidade do dropdown de opções do chat
+   * @param {number} id - ID do chat
    */
-  const handleDeleteChatCancel = () => {
-    setShowDeleteModal(false);
-    setChatToDelete(null);
+  const toggleDropdown = (id) => {
+    setDropdownOpen(dropdownOpen === id ? null : id);
   };
 
-  /** 
+  /**
+   * Função para fechar o dropdown ao clicar fora dele
+   * @param {Event} event - Evento de clique
+   */
+  const handleClickOutside = (event) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      setDropdownOpen(null);
+    }
+  };
+
+  /**
+   * Hook para adicionar/remover listener de clique para fechar dropdown
+   */
+  useEffect(() => {
+    if (dropdownOpen !== null) {
+      document.addEventListener('click', handleClickOutside);
+    } else {
+      document.removeEventListener('click', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
+  /**
    * Hook para buscar a lista de chats do backend ao montar o componente
    */
   useEffect(() => {
@@ -302,7 +318,7 @@ function ChatInterface() {
     fetchChats();
   }, []);
 
-  /** 
+  /**
    * Hook para buscar os dados do usuário logado ao montar o componente
    */
   useEffect(() => {
@@ -317,48 +333,9 @@ function ChatInterface() {
     fetchUserData();
   }, []);
 
-  /** 
-   * Função para realizar o logout do usuário
+  /**
+   * Função para rolar manualmente para o final da lista de mensagens
    */
-  const handleLogout = () => {
-    const refreshToken = localStorage.getItem('refresh'); // Obtém o token de refresh
-
-    if (!refreshToken) {
-      window.alert("Ops, ocorreu um problema.")
-      console.error('Token de refresh não encontrado.');
-      localStorage.removeItem('access');
-      localStorage.removeItem('refresh');
-      localStorage.removeItem('sessionid');
-      navigate('/login');
-      return;
-    }
-
-    const logoutData = {
-      refresh_token: refreshToken, // Dados para logout
-    };
-
-    authAPI
-      .logout(logoutData) // Chama a API de logout
-      .then((response) => {
-        // Remove tokens do localStorage
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('sessionid');
-        window.alert("Logout realizado com sucesso. Até breve!")
-        navigate('/login');
-      })
-      .catch((error) => {
-        // Mesmo se o logout falhar, remove tokens e redireciona
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('sessionid');
-
-        navigate('/login');
-
-        console.error('Erro ao fazer logout:', error);
-      });
-  };
-
   const handleManualScroll = () => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
@@ -368,7 +345,9 @@ function ChatInterface() {
     }
   };
 
-
+  /**
+   * Hook para gerenciar o comportamento de scroll na área de mensagens
+   */
   useEffect(() => {
     const handleScroll = () => {
       if (scrollRef.current) {
@@ -391,10 +370,13 @@ function ChatInterface() {
       }
     };
   }, [scrollRef]);
-  
+
+  /**
+   * Hook para rolar automaticamente para o final quando novas mensagens são adicionadas,
+   * mas somente se o usuário já estiver no final
+   */
   useEffect(() => {
     if (scrollRef.current && isAtBottom) {
-      // Role automaticamente para o final, mas somente se o usuário já estiver no final
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
         behavior: "smooth",
@@ -405,7 +387,7 @@ function ChatInterface() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navbar */}
-      <Navbar onLogout={handleLogout} user={user} />
+      <Navbar user={user} /> {/* Remova a prop onLogout */}
 
       <div className="flex flex-1">
         {/* Sidebar */}
@@ -516,7 +498,7 @@ function ChatInterface() {
                     <React.Fragment key={index}>
                       {/* Mensagem do usuário */}
                       {message.inputContent && (
-                        <div className="p-2 my-2 rounded-lg max-w-3xl bg-black text-white ml-auto text-right">
+                        <div className="p-2 my-2 rounded-lg max-w-3xl bg-black text-white ml-auto text-left">
                           {message.inputContent}
                         </div>
                       )}
@@ -559,7 +541,6 @@ function ChatInterface() {
             </div>
             <div ref={messagesEndRef} />
           </div>      
-          
 
           {/* Input fixo para enviar nova mensagem */}
           {selectedChat && (

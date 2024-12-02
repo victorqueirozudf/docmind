@@ -75,7 +75,7 @@ API.interceptors.response.use(
         alert('Sessão expirada. Faça login novamente.');
         localStorage.removeItem('access');
         localStorage.removeItem('refresh');
-        window.location.href = '/'; // Redireciona para a página de login
+        window.location.href = '/login'; // Redireciona para a página de login
         return Promise.reject(error);
       }
 
@@ -107,7 +107,7 @@ API.interceptors.response.use(
         localStorage.removeItem('access');
         localStorage.removeItem('refresh');
         alert('Sessão expirada. Faça login novamente.');
-        window.location.href = '/';
+        window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }
