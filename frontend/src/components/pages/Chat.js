@@ -286,6 +286,8 @@ function ChatInterface() {
       if (selectedChat && selectedChat.thread_id === chatToDelete.thread_id) {
         setSelectedChat(null);
       }
+      
+      window.alert("Chat apagado com sucesso!");
     } catch (error) {
       console.error('Erro ao deletar chat:', error);
     }
@@ -527,7 +529,7 @@ function ChatInterface() {
                         <div
                           className={`p-2 my-2 rounded-lg max-w-3xl ${
                             message.sender === 'api' && message.id === 'typing'
-                              ? 'bg-gray-300 p-5'
+                              ? 'bg-gray-200 p-5'
                               : 'bg-gray-200'
                           } mr-auto text-left`}
                         >

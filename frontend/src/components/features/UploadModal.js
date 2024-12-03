@@ -1,70 +1,79 @@
 import React, { useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faSpinner } from '@fortawesome/free-solid-svg-icons'
 
 function UploadModal({ showModal, onClose, onCreateChat }) {
   const [chatName, setChatName] = useState('');
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false); // Estado de processamento
 
-  // Lida com arquivos selecionados ou arrastados
   const handleFiles = (selectedFiles) => {
     if (selectedFiles && selectedFiles.length > 0) {
       const fileArray = Array.from(selectedFiles);
-      setFiles(fileArray); // Substitui os arquivos existentes pelos novos
+      setFiles(fileArray);
     }
   };
 
-  const handleCreateChat = () => {
-    // Verifica se o nome do chat e arquivos foram fornecidos
+  const handleCreateChat = async () => {
     if (!chatName.trim() || files.length === 0) {
       setErrorMessage('Por favor, forneça um nome para o chat e selecione pelo menos um arquivo.');
       return;
     }
 
-    // Se tudo estiver correto, chama a função e fecha a modal
-    onCreateChat(chatName, files);
-    onClose();
-    setChatName('');
-    setFiles([]);
-    setErrorMessage(''); // Limpa a mensagem de erro
+    setIsProcessing(true); // Inicia o estado de processamento
+
+    try {
+      await onCreateChat(chatName, files); // Aguarda o backend processar
+      setChatName('');
+      setFiles([]);
+      setErrorMessage('');
+      window.alert("Seu chat foi criado com sucesso! ")
+      onClose(); // Fecha a modal após o processamento
+    } catch (error) {
+      setErrorMessage('Erro ao processar o chat. Tente novamente.');
+    } finally {
+      setIsProcessing(false); // Finaliza o estado de processamento
+    }
   };
 
-  // Eventos de drag-and-drop
   const handleDragOver = (e) => {
     e.preventDefault();
-    setIsDragging(true); // Estilo ao arrastar
+    setIsDragging(true);
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
-    setIsDragging(false); // Remove o estilo ao sair
+    setIsDragging(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    setIsDragging(false); // Remove o estilo ao soltar
+    setIsDragging(false);
     if (e.dataTransfer && e.dataTransfer.files) {
-      handleFiles(e.dataTransfer.files); // Lida com arquivos arrastados
+      handleFiles(e.dataTransfer.files);
     }
   };
 
   const handleFileChange = (e) => {
     if (e.target && e.target.files) {
-      handleFiles(e.target.files); // Lida com arquivos selecionados via input
+      handleFiles(e.target.files);
     }
   };
 
   if (!showModal) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300 ${showModal ? "opacity-100" : "opacity-0"}`}>
-      <div className={`flex flex-col gap-5 bg-white rounded-lg w-2/5 p-5 relative`}>
+    <div
+      className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300 ${
+        showModal ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
+      <div className="flex flex-col gap-5 bg-white rounded-lg w-2/5 p-5 relative">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">Novo Chat</h2>
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 text-gray-500 hover:text-black"
-          >
+          <button onClick={onClose} className="absolute top-3 right-3 text-gray-500 hover:text-black">
             <svg
               className="w-7 h-7"
               xmlns="http://www.w3.org/2000/svg"
@@ -84,7 +93,6 @@ function UploadModal({ showModal, onClose, onCreateChat }) {
 
         <hr />
 
-        {/* Campo para o nome do chat */}
         <div className="flex flex-col gap-1">
           <label className="block text-black font-semibold mb-2">Nome do Chat:</label>
           <input
@@ -97,7 +105,6 @@ function UploadModal({ showModal, onClose, onCreateChat }) {
           />
         </div>
 
-        {/* Área de upload de arquivos */}
         <div
           className={`w-full border-2 border-dashed rounded-lg p-6 text-center mb-4 ${
             isDragging ? 'border-black bg-blue-100' : 'border-gray-300'
@@ -135,24 +142,29 @@ function UploadModal({ showModal, onClose, onCreateChat }) {
           </label>
         </div>
 
-        <p className=" text-black mb-6">ATENÇÃO: o nosso sistema utiliza de sistema terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendando não utilizar este sistema.</p>
+        <p className="text-black mb-6">
+          ATENÇÃO: o nosso sistema utiliza de sistema terceiros para realizar o processamento do
+          documento. Portanto, caso seu documento possua dados sensíveis, recomendando não utilizar
+          este sistema.
+        </p>
 
-        {/* Exibe mensagem de erro, se houver */}
-        {errorMessage && (
-          <p className="text-red-500 text-sm mb-4">{errorMessage}</p>
-        )}
+        {errorMessage && <p className="text-red-500 text-sm mb-4">{errorMessage}</p>}
 
-        {/* Botão para criar o novo chat */}
         <button
           onClick={handleCreateChat}
-          className={`w-2/5 py-2 self-center rounded-lg font-semibold text-white ${
-            chatName.trim() && files.length > 0
-              ? 'bg-black hover:bg-gray-800'
-              : 'bg-black hover:bg-gray-800'
+          className={`w-2/5 py-2 self-center rounded-lg font-semibold text-white flex justify-center items-center ${
+            chatName.trim() && files.length > 0 ? 'bg-black hover:bg-gray-800' : 'bg-gray-500'
           }`}
-          disabled={!chatName.trim() || files.length === 0} // Desativa se não atender os requisitos
+          disabled={!chatName.trim() || files.length === 0 || isProcessing}
         >
-          + Novo Chat
+          {isProcessing ? (
+            <div className="flex items-center gap-2">
+              <span>Processando...</span>
+              <FontAwesomeIcon icon={faSpinner} spinPulse />
+            </div>
+          ) : (
+            '+ Novo Chat'
+          )}
         </button>
       </div>
     </div>
