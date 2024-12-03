@@ -203,7 +203,7 @@ class PDFChatView(APIView):
         """
         Atualiza um chat existente com um novo nome e/ou um novo arquivo PDF, regenerando os vetores necessários.
 
-        **URL:** `PUT /api/chats/put/<thread_id>/`
+        **URL:** PUT /api/chats/put/<thread_id>/
 
         **Cabeçalhos HTTP:**
             - Authorization: 'Bearer <token>'
@@ -230,11 +230,12 @@ class PDFChatView(APIView):
             PUT /api/chats/36e9d38f-413f-4866-8609-8d657ed9fd29/
 
         **Exemplo de Erro:**
-        ```json
+
+json
         {
             "error": "Nenhum dado fornecido para atualização."
         }
-        ```
+
         """
         chat = get_object_or_404(ChatDetails, thread_id=thread_id, user=request.user)
 
@@ -242,7 +243,8 @@ class PDFChatView(APIView):
         pdf_files = request.FILES.getlist('pdfs')
 
         if not pdf_files and 'chat_name' not in request.data:
-            return Response({'error': 'Nenhum dado fornecido para atualização.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Nenhum dado fornecido para atualização.'},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         # Atualizar o nome do chat, se fornecido
         if 'chat_name' in request.data:
@@ -251,33 +253,19 @@ class PDFChatView(APIView):
         # Se novos PDFs forem fornecidos, processe-os
         if pdf_files:
             try:
-                # Gerar um nome único para o diretório temporário
-                temp_folder_name = f"temp_{uuid.uuid4()}"
-                temp_folder_path = os.path.join(os.path.dirname(chat.path), temp_folder_name)
+                folder_path = get_vectorstore_from_files(pdf_files, thread_id)
 
-                # Processar os novos PDFs e gerar os novos vetores no diretório temporário
-                folder_path = get_vectorstore_from_files(pdf_files, thread_id, temp_dir=temp_folder_path)
-
-                # Verificar se a criação dos vetores foi bem-sucedida
-                if not os.path.exists(folder_path):
-                    raise Exception("Falha na criação do novo vectorstore.")
-
-                # Extrair os nomes dos arquivos e atualizar no banco de dados
-                file_names = [file.name for file in pdf_files]
-                chat.file_names = file_names
-
-                # Apagar o diretório antigo após a criação bem-sucedida dos novos vetores
                 if os.path.exists(chat.path):
                     shutil.rmtree(chat.path, ignore_errors=True)
 
-                # Atualizar o caminho do chat para o novo folder_path
-                chat.path = folder_path
+                # Extraia os nomes dos arquivos e atualize no banco de dados
+                file_names = [file.name for file in pdf_files]
+                chat.file_names = file_names
 
+                chat.path = folder_path
             except Exception as e:
-                # Remover o diretório temporário caso exista para evitar acumulação de dados
-                if os.path.exists(temp_folder_path):
-                    shutil.rmtree(temp_folder_path, ignore_errors=True)
-                return Response({'error': f'Erro ao processar os PDFs: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({'error': f'Erro ao processar os PDFs: {str(e)}'},
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Salvar as alterações no chat
         chat.save()
