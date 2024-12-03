@@ -8,6 +8,7 @@ import { authAPI, chatAPI } from '../../axios';
 import ReactMarkdown from "react-markdown";
 import Navbar from '../layout/Navbar'
 
+
 function ChatInterface() {
   const dropdownRef = useRef(null); // Referência para detectar cliques fora do dropdown
 
@@ -100,6 +101,7 @@ function ChatInterface() {
   */
   const handleSelectChat = async (chat) => {
     setSelectedChat(chat); // Define o chat selecionado inicialmente
+    setDropdownOpen(null); // Fecha o dropdown ao selecionar outro chat
 
     try {
       const response = await chatAPI.getChatDetails(chat.thread_id); // Utiliza a função definida no chatAPI
@@ -160,31 +162,50 @@ function ChatInterface() {
         inputContent: newMessage, // A mensagem enviada pelo usuário
         sender: 'user',
       };
-
+  
       setSelectedChat((prevChat) => ({
         ...prevChat,
         messages: [...(prevChat.messages || []), userMessage],
       }));
-
+  
       setNewMessage(''); // Limpa o campo de entrada
-
+  
+      // Adiciona o indicador de "digitando"
+      setSelectedChat((prevChat) => ({
+        ...prevChat,
+        messages: [
+          ...(prevChat.messages || []),
+          {
+            id: 'typing',
+            outputContent: <div className="dot-flashing"></div>, // Elemento de animação
+            sender: 'api',
+          },
+        ],
+      }));
+  
       try {
         const response = await chatAPI.sendQuestionToChat(selectedChat.thread_id, {
           question: newMessage,
         });
-
+  
         const apiMessage = {
-          id: Date.now() + 1, // ID temporário para a resposta
+          id: Date.now(), // ID para a resposta
           outputContent: response.data.answer, // Resposta da API
           sender: 'api',
         };
-
+  
+        // Substitui o indicador "Digitando..." pela resposta
         setSelectedChat((prevChat) => ({
           ...prevChat,
-          messages: [...prevChat.messages, apiMessage],
+          messages: [...prevChat.messages.filter((msg) => msg.id !== 'typing'), apiMessage],
         }));
       } catch (error) {
         console.error('Erro ao enviar mensagem:', error);
+        // Remove o indicador "Digitando..." em caso de erro
+        setSelectedChat((prevChat) => ({
+          ...prevChat,
+          messages: prevChat.messages.filter((msg) => msg.id !== 'typing'),
+        }));
       }
     }
   };
@@ -405,7 +426,7 @@ function ChatInterface() {
           </button>
 
           {/* Listagem dos chats */}
-          <div onClick={() => setDropdownOpen(null)} className="flex-1 scrollbar"> {/*overflow-y-auto max-h-[calc(100vh-260px)]*/}
+          <div onClick={() => setDropdownOpen(null)} className="flex-1 overflow-y-auto max-h-[calc(100vh-260px)] scrollbar"> {/*overflow-y-auto max-h-[calc(100vh-260px)]*/}
             <p className="text-gray-600 font-medium mb-3">Suas conversas</p>
             <ul>
               {chats.map((chat) => (
@@ -439,7 +460,7 @@ function ChatInterface() {
                       
                       {/* Dropdown com opções de atualizar e apagar chat */}
                       {dropdownOpen === chat.thread_id && (
-                        <div ref={dropdownRef} className="absolute z-10 bg-white border rounded-lg shadow-md left-6 top-1 mt-2">
+                        <div ref={dropdownRef} className="absolute z-50 bg-white border rounded-lg shadow-md right-6 bottom-0 mt-2">
                           <button
                             onClick={() => handleUpdateChatOpen(chat)}
                             className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hover:underline"
@@ -489,7 +510,7 @@ function ChatInterface() {
           </div>
 
           {/* Área de mensagens */}
-          <div ref={scrollRef} className='overflow-y-auto scrollbar'>
+          <div ref={scrollRef} className="overflow-y-auto scrollbar">
             <div className="flex-1 flex flex-col h-[calc(100vh-220px)] p-5">
               {selectedChat ? (
                 selectedChat.messages && selectedChat.messages.length > 0 ? (
@@ -501,10 +522,18 @@ function ChatInterface() {
                           {message.inputContent}
                         </div>
                       )}
-                      {/* Resposta da IA */}
+                      {/* Resposta da IA ou indicador de "Digitando..." */}
                       {message.outputContent && (
-                        <div className="p-2 my-2 rounded-lg max-w-3xl bg-gray-200 mr-auto text-left">
-                          <ReactMarkdown>{message.outputContent}</ReactMarkdown>
+                        <div
+                          className={`p-2 my-2 rounded-lg max-w-3xl ${
+                            message.sender === 'api' && message.id === 'typing'
+                              ? 'bg-gray-300 p-5'
+                              : 'bg-gray-200'
+                          } mr-auto text-left`}
+                        >
+                          {typeof message.outputContent === 'string'
+                            ? <ReactMarkdown>{message.outputContent}</ReactMarkdown>
+                            : message.outputContent /* Renderiza o JSX diretamente */}
                         </div>
                       )}
                     </React.Fragment>
@@ -519,7 +548,7 @@ function ChatInterface() {
                     Selecione uma conversa já criada, clique em Novo Chat, ou{' '}
                     <span
                       className="text-gray-700 cursor-pointer underline"
-                      onClick={handleNewChat} // Certifique-se de ter esta função definida
+                      onClick={handleNewChat}
                     >
                       clique aqui
                     </span>{' '}
@@ -527,7 +556,6 @@ function ChatInterface() {
                   </p>
                 </div>
               )}
-
               {isScrollable && (
                 <button
                   onClick={handleManualScroll}
@@ -539,7 +567,8 @@ function ChatInterface() {
               )}
             </div>
             <div ref={messagesEndRef} />
-          </div>      
+          </div>
+      
 
           {/* Input fixo para enviar nova mensagem */}
           {selectedChat && (
