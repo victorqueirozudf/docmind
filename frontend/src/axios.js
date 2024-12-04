@@ -75,7 +75,7 @@ API.interceptors.response.use(
         alert('Sessão expirada. Faça login novamente.');
         localStorage.removeItem('access');
         localStorage.removeItem('refresh');
-        window.location.href = '/'; // Redireciona para a página de login
+        window.location.href = '/login'; // Redireciona para a página de login
         return Promise.reject(error);
       }
 
@@ -107,7 +107,7 @@ API.interceptors.response.use(
         localStorage.removeItem('access');
         localStorage.removeItem('refresh');
         alert('Sessão expirada. Faça login novamente.');
-        window.location.href = '/';
+        window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }
@@ -126,9 +126,6 @@ export const authAPI = {
 
   // Sign up new user
   signup: (data) => API.post('authentication/signup/', data),
-
-  // Create user (admin only)
-  createUser: (data) => API.post('authentication/create-user/', data),
 
   // Redefine User Password
   redefinePassword: (userId) => API.put(`authentication/reset-password/${userId}`),
@@ -174,7 +171,9 @@ export const chatAPI = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-    }),
+      validateStatus: () => true, 
+    }, 
+  ),
 
   // Get chat details and history by thread_id
   getChatDetails: (thread_id) => API.get(`api/chats/${thread_id}/`),

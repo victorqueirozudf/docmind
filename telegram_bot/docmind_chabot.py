@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 import re
 import requests
 import openai
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+from base64 import b64encode
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -23,11 +26,11 @@ if not os.path.exists('./temp/'):
 
 # Configuration
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-API_LOGIN_URL = os.getenv('API_LOGIN_URL')
-API_USERNAME = os.getenv('API_USERNAME')
-API_PASSWORD = os.getenv('API_PASSWORD')
-API_BASE_URL = os.getenv('API_BASE_URL')
+API_LOGIN_URL = os.getenv('API_LOGIN_URL')  # Endpoint for authentication
+API_BASE_URL = os.getenv('API_BASE_URL')    # Base URL for other API endpoints
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+CYPHER_KEY = os.getenv('KEY_CRYPTOGRAPHY')  # AES Key for encryption (32 bytes for AES-256)
+CYPHER_IV = os.getenv('IV_CRYPTOGRAPHY')    # AES IV for encryption (16 bytes for AES)
 
 # States for ConversationHandler
 WAITING_FOR_DOCUMENT = 1
@@ -42,8 +45,8 @@ UPDATE_NAME = 9
 UPDATE_DOCUMENT = 10
 CONFIRM_UPDATE = 11
 
-# Global variable to store JWT token
-JWT_TOKEN = None
+# States for Authentication
+AUTH_USERNAME_STATE, AUTH_PASSWORD_STATE = range(12, 14)
 
 
 def escape_markdown(text):
@@ -56,7 +59,7 @@ def escape_markdown(text):
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
 
-def get_audio_anwser(audio_path):
+def get_audio_answer(audio_path):
     """
     Transcribes audio using OpenAI's Whisper and returns the transcription.
     """
@@ -64,15 +67,32 @@ def get_audio_anwser(audio_path):
 
     try:
         with open(audio_path, "rb") as audio_file:
-            transcription = openai.audio.transcriptions.create(
+            transcription = openai.Audio.transcribe(
                 model="whisper-1",
                 file=audio_file
             )
-        print(f"Transcrição do áudio: {transcription.text}")
-        return transcription.text
+        print(f"Transcrição do áudio: {transcription['text']}")
+        return transcription['text']
     except Exception as e:
         print(f"Erro ao transcrever o áudio: {e}")
         raise e  # Propaga a exceção para ser tratada na função chamadora
+
+
+def encrypt_password(password: str) -> str:
+    """
+    Criptografa a senha usando AES-CBC com PKCS7 padding e retorna uma string base64 codificada.
+    """
+    try:
+        key = CYPHER_KEY.encode('utf-8')
+        iv = CYPHER_IV.encode('utf-8')
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        padded_password = pad(password.encode('utf-8'), AES.block_size)
+        encrypted_password = cipher.encrypt(padded_password)
+        encrypted_password_b64 = b64encode(encrypted_password).decode('utf-8')
+        return encrypted_password_b64
+    except Exception as e:
+        print(f"Erro ao criptografar a senha: {e}")
+        raise e
 
 
 def restricted(func):
@@ -80,49 +100,40 @@ def restricted(func):
 
     @wraps(func)
     async def wrapped(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        # Implement authorization checks here if necessary
+        user_id = update.effective_user.id
+        if not context.user_data.get('authenticated'):
+            await update.message.reply_text(
+                "Você precisa se autenticar primeiro. Por favor, envie /start para iniciar o processo de autenticação."
+            )
+            print(f"User {user_id} tentou acessar um comando sem autenticação.")
+            return
         return await func(update, context, *args, **kwargs)
 
     return wrapped
 
 
-def authenticate():
-    """
-    Authenticates the bot with the Django API and obtains a JWT token.
-    """
-    global JWT_TOKEN
-    payload = {
-        'username': API_USERNAME,
-        'password': API_PASSWORD
-    }
-    try:
-        print("Attempting to authenticate with Django API...")
-        response = requests.post(API_LOGIN_URL, data=payload)
-        if response.status_code == 200:
-            JWT_TOKEN = response.json().get('access')
-            print("Authentication successful! JWT token obtained.")
-        else:
-            print(f"Authentication failed: {response.status_code} - {response.text}")
-    except Exception as e:
-        print(f"Error during authentication: {e}")
-
-
 @restricted
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Sends a welcome message and instructions to the user.
+    Sends the list of available commands to the user.
     """
-    user_id = update.effective_user.id
-    print(f"User {user_id} started the bot.")
     await update.message.reply_text(
-        "Olá! Eu sou o seu assistente bot.\n\n"
         "Comandos disponíveis:\n"
         "/subir_documento - Envie um documento para criar um novo chat.\n"
         "/listar_chats - Liste todos os chats disponíveis.\n"
         "/apagar_chat - Apagar um chat existente.\n"
         "/atualizar_chat - Atualizar um chat existente.\n"
-        "/cancel - Cancelar a operação atual."
+        "/help - Mostrar esta lista de comandos.\n"
+        "/cancel - Cancelar a operação atual.\n"
+        "/logout - Sair da sessão atual."
     )
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Sends the list of available commands to the user.
+    """
+    await show_commands(update, context)
 
 
 @restricted
@@ -153,7 +164,7 @@ async def upload_document_receive_chat_name(update: Update, context: ContextType
     context.user_data['chat_name'] = chat_name
     print(f"User {user_id} set the chat name to: {chat_name}")
     await update.message.reply_text(
-        "Nome do chat recebido com sucesso!\n\nPor favor, envie o documento que deseja subir (PDF, DOCX, etc.)."
+        "Nome do chat recebido com sucesso!\n\nPor favor, envie o documento que deseja subir (apenas PDF).\n\nATENÇÃO: o nosso sistema utiliza sistemas terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendamos não utilizar este sistema."
     )
     return WAITING_FOR_DOCUMENT
 
@@ -170,32 +181,31 @@ async def upload_document_receive_document(update: Update, context: ContextTypes
     if document:
         file_type = document.mime_type
         print(f"User {user_id} sent a document with MIME type: {file_type}")
-        if file_type not in ['application/pdf',
-                             'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
-            await update.message.reply_text("Por favor, envie um arquivo PDF ou DOCX válido.")
+        if file_type not in ['application/pdf']:
+            await update.message.reply_text("Por favor, envie um arquivo PDF válido.")
             return WAITING_FOR_DOCUMENT
         # Store document information in context for future use
         context.user_data['document'] = document
-        await update.message.reply_text("Documento recebido com sucesso!\n\n"
-                                        "Processando o documento...")
+        await update.message.reply_text("Documento recebido com sucesso!\n\nProcessando o documento...")
 
         # Prepare data for the API
         headers = {
-            'Authorization': f'Bearer {JWT_TOKEN}'
+            'Authorization': f'Bearer {context.user_data.get("access_token")}'
         }
         data = {
-            'chatName': chat_name
+            'chat_name': chat_name
         }
 
         # Download the file
         try:
             file = await document.get_file()
-            pdf_path = f"./temp/{file.file_id}.pdf"
+            file_extension = os.path.splitext(file.file_path)[1] if file.file_path else '.pdf'
+            pdf_path = f"./temp/{file.file_id}{file_extension}"
             await file.download_to_drive(pdf_path)
             print(f"File downloaded to {pdf_path}")
         except Exception as e:
             print(f"Error downloading the file: {e}")
-            await update.message.reply_text("Ocorreu um erro ao baixar o documento. Por favor, tente novamente.")
+            await update.message.reply_text("Ocorreu um erro ao processar o documento. Por favor, tente novamente.")
             return WAITING_FOR_DOCUMENT
 
         files = {
@@ -221,9 +231,10 @@ async def upload_document_receive_document(update: Update, context: ContextTypes
                     # If 'thread_id' is not present, log the entire chat object for debugging
                     print(f"Chat object does not contain 'thread_id': {chat}")
                     await update.message.reply_text("Falha ao obter o ID do chat na resposta da API.")
-                    return WAITING_FOR_DOCUMENT
+                    await show_commands(update, context)  # Envia comandos disponíveis
+                    return ConversationHandler.END
                 context.user_data['chat_id'] = chat_id  # Store the chat_id
-                await update.message.reply_text(f"Chat '{chat_name}' criado com sucesso!\nID do Chat: {chat_id}")
+                await update.message.reply_text(f"Chat '{chat_name}' criado com sucesso!\nID do Chat: {chat_id}. Para acessá-lo, digite /listar_chats")
                 print(f"Chat created: {chat}")
             elif response.status_code == 400:
                 # Check if the error is due to chat already existing
@@ -242,6 +253,7 @@ async def upload_document_receive_document(update: Update, context: ContextTypes
             print(f"Error interacting with the API: {e}")
             await update.message.reply_text("Ocorreu um erro ao processar o documento. Por favor, tente novamente.")
 
+        await show_commands(update, context)  # Envia a lista de comandos após a operação
         return ConversationHandler.END
     else:
         print(f"User {user_id} did not send a valid document.")
@@ -257,7 +269,7 @@ async def listar_chats_start(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = update.effective_user.id
     print(f"User {user_id} initiated the /listar_chats command.")
     headers = {
-        'Authorization': f'Bearer {JWT_TOKEN}'
+        'Authorization': f'Bearer {context.user_data.get("access_token")}'
     }
     try:
         print(f"Retrieving chats for user {user_id}...")
@@ -275,7 +287,7 @@ async def listar_chats_start(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 # Build a message listing the chats
                 message = "Chats disponíveis:\n"
                 for idx, chat in enumerate(chats, start=1):
-                    message += f"{idx}. {chat.get('chatName')} (ID: {chat.get('thread_id')})\n"
+                    message += f"{idx}. {chat.get('chat_name')} (ID: {chat.get('thread_id')})\n"
                 message += "\nPor favor, envie o número correspondente ao chat que deseja selecionar."
                 await update.message.reply_text(message)
                 # Store the list of chats in context for future reference
@@ -324,7 +336,7 @@ async def list_chats_selection(update: Update, context: ContextTypes.DEFAULT_TYP
 
     context.user_data['chat_id'] = chat_id
     await update.message.reply_text(
-        f"Chat '{selected_chat.get('chatName')}' selecionado com sucesso!\nID do Chat: {chat_id}\n\n"
+        f"Chat '{selected_chat.get('chat_name')}' selecionado com sucesso!\nID do Chat: {chat_id}\n\n"
         "Você está agora no modo de perguntas. Envie a sua pergunta ou /cancel para sair."
     )
     print(f"User {user_id} selected chat_id {chat_id} via /listar_chats.")
@@ -358,7 +370,7 @@ async def handle_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Transcribe the audio
         try:
-            transcription = get_audio_anwser(audio_path)
+            transcription = get_audio_answer(audio_path)
             print(f"Transcrição do áudio: {transcription}")
         except Exception as e:
             print(f"Error transcribing audio: {e}")
@@ -391,7 +403,7 @@ async def handle_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Prepare the request to the API
     headers = {
-        'Authorization': f'Bearer {JWT_TOKEN}',
+        'Authorization': f'Bearer {context.user_data.get("access_token")}',
         'Content-Type': 'application/json',
     }
 
@@ -435,7 +447,7 @@ async def atualizar_chat_start(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = update.effective_user.id
     print(f"User {user_id} initiated the /atualizar_chat command.")
     headers = {
-        'Authorization': f'Bearer {JWT_TOKEN}'
+        'Authorization': f'Bearer {context.user_data.get("access_token")}'
     }
     try:
         print(f"Retrieving chats for user {user_id} to update...")
@@ -453,7 +465,7 @@ async def atualizar_chat_start(update: Update, context: ContextTypes.DEFAULT_TYP
                 # Construir uma mensagem listando os chats
                 message = "Chats disponíveis para atualizar:\n"
                 for idx, chat in enumerate(chats, start=1):
-                    message += f"{idx}. {chat.get('chatName')} (ID: {chat.get('thread_id')})\n"
+                    message += f"{idx}. {chat.get('chat_name')} (ID: {chat.get('thread_id')})\n"
                 message += "\nPor favor, envie o número correspondente ao chat que deseja atualizar."
                 await update.message.reply_text(message)
                 # Armazenar a lista de chats no contexto para referência futura
@@ -493,7 +505,7 @@ async def atualizar_chat_selection(update: Update, context: ContextTypes.DEFAULT
 
     selected_chat = chats[selection - 1]
     chat_id = selected_chat.get('thread_id')
-    chat_name = selected_chat.get('chatName')
+    chat_name = selected_chat.get('chat_name')
 
     if not chat_id:
         # Se 'thread_id' não estiver presente, logar o objeto completo para depuração
@@ -535,7 +547,7 @@ async def atualizar_chat_choose_update(update: Update, context: ContextTypes.DEF
         await update.message.reply_text("Por favor, envie o novo nome para o chat:")
         return UPDATE_NAME
     elif choice == '2':
-        await update.message.reply_text("Por favor, envie o novo arquivo PDF para o chat:")
+        await update.message.reply_text("Por favor, envie o novo arquivo PDF para o chat:\n\nATENÇÃO: o nosso sistema utiliza sistemas terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendamos não utilizar este sistema.")
         return UPDATE_DOCUMENT
     elif choice == '3':
         await update.message.reply_text("Por favor, envie o novo nome para o chat:")
@@ -558,7 +570,7 @@ async def atualizar_chat_new_name(update: Update, context: ContextTypes.DEFAULT_
     choice = context.user_data.get('update_choice')
 
     if choice in ['2', '3']:
-        await update.message.reply_text("Por favor, envie o novo arquivo PDF para o chat:")
+        await update.message.reply_text("Por favor, envie o novo arquivo PDF para o chat:\n\nATENÇÃO: o nosso sistema utiliza sistemas terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendamos não utilizar este sistema.")
         return UPDATE_DOCUMENT
     else:
         # Se apenas o nome está sendo atualizado, proceder para confirmação
@@ -622,14 +634,14 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
 
         # Preparar os dados para a requisição PUT
         headers = {
-            'Authorization': f'Bearer {JWT_TOKEN}'
+            'Authorization': f'Bearer {context.user_data.get("access_token")}'
         }
 
         data = {}
         files = {}
 
         if new_chat_name:
-            data['chatName'] = new_chat_name
+            data['chat_name'] = new_chat_name
 
         if new_pdf_document:
             try:
@@ -662,7 +674,7 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
 
             if response.status_code == 200:
                 updated_chat = response.json()
-                await update.message.reply_text(f"Chat '{updated_chat.get('chatName')}' atualizado com sucesso!")
+                await update.message.reply_text(f"Chat '{updated_chat.get('chat_name')}' atualizado com sucesso! Digite /listar_chats para conversar com seu pdf.")
                 print(f"Chat updated successfully: {updated_chat}")
             else:
                 try:
@@ -681,6 +693,7 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data.pop('new_pdf_document', None)
         context.user_data.pop('chats_to_update', None)
 
+        await show_commands(update, context)  # Envia a lista de comandos após a operação
         return ConversationHandler.END
 
     else:
@@ -694,8 +707,6 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
         return ConversationHandler.END
 
 
-# **Funções de Exclusão de Chat**
-
 @restricted
 async def apagar_chat_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -704,7 +715,7 @@ async def apagar_chat_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     print(f"User {user_id} initiated the /apagar_chat command.")
     headers = {
-        'Authorization': f'Bearer {JWT_TOKEN}'
+        'Authorization': f'Bearer {context.user_data.get("access_token")}'
     }
     try:
         print(f"Retrieving chats for user {user_id} to delete...")
@@ -722,7 +733,7 @@ async def apagar_chat_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Build a message listing the chats
                 message = "Chats disponíveis para apagar:\n"
                 for idx, chat in enumerate(chats, start=1):
-                    message += f"{idx}. {chat.get('chatName')} (ID: {chat.get('thread_id')})\n"
+                    message += f"{idx}. {chat.get('chat_name')} (ID: {chat.get('thread_id')})\n"
                 message += "\nPor favor, envie o número correspondente ao chat que deseja apagar."
                 await update.message.reply_text(message)
                 # Store the list of chats in context for future reference
@@ -762,7 +773,7 @@ async def apagar_chat_selection(update: Update, context: ContextTypes.DEFAULT_TY
 
     selected_chat = chats[selection - 1]
     chat_id = selected_chat.get('thread_id')
-    chat_name = selected_chat.get('chatName')
+    chat_name = selected_chat.get('chat_name')
 
     if not chat_id:
         # If 'thread_id' is not present, log the entire chat object for debugging
@@ -802,7 +813,7 @@ async def apagar_chat_confirmation(update: Update, context: ContextTypes.DEFAULT
 
         # Prepare the DELETE request to the API
         headers = {
-            'Authorization': f'Bearer {JWT_TOKEN}'
+            'Authorization': f'Bearer {context.user_data.get("access_token")}'
         }
         api_endpoint = f"{API_BASE_URL}delete/{chat_id}/"
 
@@ -835,6 +846,22 @@ async def apagar_chat_confirmation(update: Update, context: ContextTypes.DEFAULT
     context.user_data.pop('chat_name_to_delete', None)
     context.user_data.pop('chats_to_delete', None)
 
+    await show_commands(update, context)  # Envia a lista de comandos após a operação
+    return ConversationHandler.END
+
+
+@restricted
+async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Logs out the user by clearing the authentication status.
+    """
+    user_id = update.effective_user.id
+    context.user_data.pop('access_token', None)
+    context.user_data.pop('refresh_token', None)
+    context.user_data.pop('session_id', None)
+    context.user_data.pop('authenticated', None)
+    await update.message.reply_text("Você foi desautenticado com sucesso. Para acessar novamente, envie /start.")
+    print(f"User {user_id} logged out.")
     return ConversationHandler.END
 
 
@@ -861,14 +888,14 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
 
         # Preparar os dados para a requisição PUT
         headers = {
-            'Authorization': f'Bearer {JWT_TOKEN}'
+            'Authorization': f'Bearer {context.user_data.get("access_token")}'
         }
 
         data = {}
         files = {}
 
         if new_chat_name:
-            data['chatName'] = new_chat_name
+            data['chat_name'] = new_chat_name
 
         if new_pdf_document:
             try:
@@ -901,7 +928,7 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
 
             if response.status_code == 200:
                 updated_chat = response.json()
-                await update.message.reply_text(f"Chat '{updated_chat.get('chatName')}' atualizado com sucesso!")
+                await update.message.reply_text(f"Chat '{updated_chat.get('chat_name')}' atualizado com sucesso! Digite /listar_chats para conversar com seu pdf.")
                 print(f"Chat updated successfully: {updated_chat}")
             else:
                 try:
@@ -920,6 +947,7 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data.pop('new_pdf_document', None)
         context.user_data.pop('chats_to_update', None)
 
+        await show_commands(update, context)  # Envia a lista de comandos após a operação
         return ConversationHandler.END
 
     else:
@@ -931,6 +959,7 @@ async def atualizar_chat_execute(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data.pop('new_pdf_document', None)
         context.user_data.pop('chats_to_update', None)
         return ConversationHandler.END
+
 
 @restricted
 async def delete_chat_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -963,10 +992,14 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop('chat_id_to_delete', None)
     context.user_data.pop('chat_name_to_delete', None)
     context.user_data.pop('chats_to_delete', None)
+    # Invalida a autenticação se estiver no meio do processo
+    context.user_data.pop('auth_username', None)
+    await update.message.reply_text("Operação cancelada.")
     await show_commands(update, context)
     return ConversationHandler.END
 
 
+@restricted
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Responds to unknown commands.
@@ -974,49 +1007,153 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     print(f"User {user_id} sent an unknown command: {update.message.text}")
     await update.message.reply_text(
-        "Desculpe, eu não reconheço esse comando. Use /start para ver os comandos disponíveis."
+        "Desculpe, eu não reconheço esse comando. Use /help para ver os comandos disponíveis."
     )
 
 
-@restricted
-async def handle_global_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Processes questions sent in ask mode.
-    Este handler global foi removido na implementação atual.
-    """
-    # Este método não é mais utilizado e foi integrado ao ConversationHandler
-    pass
+# Handlers para Autenticação
 
-
-async def show_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_auth(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Sends the list of available commands to the user.
+    Inicia o fluxo de autenticação ao enviar /start.
     """
+    user_id = update.effective_user.id
+    print(f"User {user_id} started the bot.")
     await update.message.reply_text(
-        "Comandos disponíveis:\n"
-        "/subir_documento - Envie um documento para criar um novo chat.\n"
-        "/listar_chats - Liste todos os chats disponíveis.\n"
-        "/apagar_chat - Apagar um chat existente.\n"
-        "/atualizar_chat - Atualizar um chat existente.\n"
-        "/cancel - Cancelar a operação atual."
+        "Bem-vindo ao Docmind! Para acessar, por favor, insira seu username."
     )
+    return AUTH_USERNAME_STATE
+
+
+async def auth_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Recebe o username do usuário e solicita a senha.
+    """
+    user_id = update.effective_user.id
+    username = update.message.text.strip()
+    
+    if not username:
+        await update.message.reply_text("O username não pode estar vazio. Por favor, insira um username válido:")
+        return AUTH_USERNAME_STATE
+    
+    context.user_data['auth_username'] = username
+    print(f"User {user_id} entered username: {username}")
+    await update.message.reply_text("Por favor, insira sua senha:")
+    return AUTH_PASSWORD_STATE
+
+
+async def auth_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Recebe a senha do usuário, criptografa, e realiza a autenticação enviando para o backend.
+    """
+    user_id = update.effective_user.id
+    password = update.message.text.strip()
+    username = context.user_data.get('auth_username')
+    
+    if not password:
+        await update.message.reply_text("A senha não pode estar vazia. Por favor, insira uma senha válida:")
+        return AUTH_PASSWORD_STATE
+    
+    # Criptografar a senha usando o método AES-CBC
+    try:
+        encrypted_password = encrypt_password(password)
+    except Exception as e:
+        await update.message.reply_text("Ocorreu um erro ao criptografar a senha. Por favor, tente novamente.")
+        print(f"Error encrypting password for user {user_id}: {e}")
+        return ConversationHandler.END
+
+    # Preparar os dados para a requisição de autenticação
+    auth_payload = {
+        'username': username,
+        'password': encrypted_password
+    }
+
+    try:
+        # Enviar a requisição POST para o backend de autenticação
+        print(f"Sending authentication request for user {user_id}...")
+        response = requests.post(API_LOGIN_URL, data=auth_payload)
+        
+        if response.status_code == 200:
+            auth_response = response.json()
+            access_token = auth_response.get('access')
+            refresh_token = auth_response.get('refresh')
+            session_id = auth_response.get('sessionid')
+
+            if access_token and refresh_token and session_id:
+                # Armazenar os tokens no user_data para uso futuro
+                context.user_data['access_token'] = access_token
+                context.user_data['refresh_token'] = refresh_token
+                context.user_data['session_id'] = session_id
+                context.user_data['authenticated'] = True
+
+                await update.message.reply_text(
+                    "Autenticação bem-sucedida! Você agora tem acesso aos comandos do bot."
+                )
+                # Opcional: Envie a lista de comandos disponíveis
+                await show_commands(update, context)
+                print(f"User {user_id} authenticated successfully.")
+                return ConversationHandler.END
+            else:
+                await update.message.reply_text(
+                    "Autenticação falhou. Resposta inesperada do servidor."
+                )
+                print(f"User {user_id} received unexpected authentication response: {auth_response}")
+                return ConversationHandler.END
+        elif response.status_code == 404:
+            await update.message.reply_text(
+                "Autenticação falhou. Usuário não encontrado.\nTente novamente ou envie /start para reiniciar o processo."
+            )
+            print(f"User {user_id} authentication failed: User not found.")
+            return ConversationHandler.END
+        elif response.status_code == 401:
+            await update.message.reply_text(
+                "Autenticação falhou. Senha incorreta.\nTente novamente ou envie /start para reiniciar o processo."
+            )
+            print(f"User {user_id} authentication failed: Incorrect password.")
+            return ConversationHandler.END
+        else:
+            try:
+                error_msg = response.json().get('message', 'Erro desconhecido.')
+            except:
+                error_msg = 'Erro desconhecido.'
+            await update.message.reply_text(f"Autenticação falhou: {error_msg}\nTente novamente ou envie /start para reiniciar o processo.")
+            print(f"User {user_id} authentication failed: {response.status_code} - {response.text}")
+            return ConversationHandler.END
+    except Exception as e:
+        await update.message.reply_text("Ocorreu um erro durante a autenticação. Por favor, tente novamente.")
+        print(f"Error during authentication request for user {user_id}: {e}")
+        return ConversationHandler.END
 
 
 def main():
     """
     Starts the bot.
     """
-    # Authenticate the bot with the Django API
-    authenticate()
-    if not JWT_TOKEN:
-        print("Failed to authenticate with the API. The bot will not start.")
-        return
+    # Remove a autenticação inicial do bot
+    # authenticate_bot()
+    # if not JWT_TOKEN:
+    #     print("Failed to authenticate with the API. The bot will not start.")
+    #     return
 
     # Create the Telegram bot application
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Handler for the /start command
-    application.add_handler(CommandHandler("start", start))
+    # ConversationHandler para Autenticação
+    auth_conv = ConversationHandler(
+        entry_points=[CommandHandler('start', start_auth)],
+        states={
+            AUTH_USERNAME_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, auth_username)],
+            AUTH_PASSWORD_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, auth_password)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
+    application.add_handler(auth_conv)
+
+    # Handler para o comando /help
+    application.add_handler(CommandHandler("help", help_command))
+
+    # Handler para o comando /logout
+    application.add_handler(CommandHandler("logout", logout))
 
     # ConversationHandler para /subir_documento
     upload_document_conv = ConversationHandler(
@@ -1054,7 +1191,7 @@ def main():
     )
     application.add_handler(apagar_chat_conv)
 
-    # **ConversationHandler para /atualizar_chat**
+    # ConversationHandler para /atualizar_chat
     atualizar_chat_conv = ConversationHandler(
         entry_points=[CommandHandler('atualizar_chat', atualizar_chat_start)],
         states={

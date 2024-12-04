@@ -27,7 +27,7 @@ function AdminDashboard() {
         }
       } catch (error) {
         console.error('Erro ao verificar o usuário:', error);
-        navigate('/'); // Redireciona para o login se não autenticado
+        navigate('/login'); // Redireciona para o login se não autenticado
       } finally {
         setLoading(false);
       }
@@ -53,7 +53,9 @@ function AdminDashboard() {
 
   const handleDeleteUser = async (userId) => {
     try {
-      await authAPI.delete({ user_id: userId }); // Chama a API para deletar o usuário
+      console.log(userId)
+      // Inclua o `userId` como parte da URL
+      await authAPI.delete(`${userId}`); 
       alert(`Usuário com ID ${userId} foi excluído.`);
       setUsers(users.filter((u) => u.id !== userId)); // Remove da lista local
     } catch (error) {
@@ -64,52 +66,12 @@ function AdminDashboard() {
 
   const handleResetPassword = async (userId) => {
     try {
-      await authAPI.redefinePassword({ user_id: userId }); // Chama a API para redefinir a senha do usuário
+      await authAPI.redefinePassword(`${userId}`); // Chama a API para redefinir a senha do usuário
       alert(`Senha do usuário com ID ${userId} foi redefinida para a senha padrão.`);
     } catch (error) {
       console.error('Erro ao redefinir senha do usuário:', error);
       alert('Não foi possível redefinir a senha do usuário. Tente novamente.');
     }
-  };
-
-  const handleLogout = () => {
-    const refreshToken = localStorage.getItem('refresh'); // Obtém o token de refresh
-
-    if (!refreshToken) {
-      console.error('Token de refresh não encontrado.');
-      // Remove tokens existentes e redireciona
-      localStorage.removeItem('access');
-      localStorage.removeItem('refresh');
-      localStorage.removeItem('sessionid');
-      navigate('/');
-      return;
-    }
-
-    const logoutData = {
-      refresh_token: refreshToken, // Dados para logout
-    };
-
-    authAPI
-      .logout(logoutData) // Chama a API de logout
-      .then((response) => {
-        // Remove tokens do localStorage
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('sessionid');
-
-        // Redireciona para a página de login
-        navigate('/');
-      })
-      .catch((error) => {
-        // Mesmo se o logout falhar, remove tokens e redireciona
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('sessionid');
-
-        navigate('/');
-
-        console.error('Erro ao fazer logout:', error);
-      });
   };
 
   const openConfirmationModal = (action, message, text, userId) => {
@@ -129,18 +91,14 @@ function AdminDashboard() {
 
   const handleCreateUser = async (username, isSuperuser = false) => {
     try {
-      const data = {
-        username,
-        is_superuser: isSuperuser, // Determina se o usuário será superusuário
-      };
-  
-      const response = await authAPI.createUser(data);
-      alert(`Usuário ${response.data.username} criado com sucesso!`);
-  
+      const data = { username };
+      console.log("Enviando dados para o backend:", data); // Log para verificar os dados enviados
+      const response = await authAPI.signup(data);
+      alert(`Usuário ${username} criado com sucesso!`);
       // Atualiza a lista de usuários
       const updatedUsers = await adminAPI.listUsers();
       setUsers(updatedUsers.data);
-      setShowCreateUserModal(false); // Fecha a modal
+      setShowCreateUserModal(false); // Fecha o modal
     } catch (error) {
       console.error('Erro ao criar usuário:', error.response?.data || error.message);
       alert('Erro ao criar usuário. Verifique os dados e tente novamente.');
@@ -153,7 +111,7 @@ function AdminDashboard() {
 
   return (
     <>
-      <Navbar onLogout={handleLogout} user={user} />
+      <Navbar user={user} /> {/* Remova a prop onLogout */}
 
       <div className="h-full flex flex-col p-5">
         <h1 className="text-3xl font-bold mb-4 caret-transparent">Painel de Administrador</h1>
@@ -258,8 +216,7 @@ function AdminDashboard() {
               onSubmit={(e) => {
                 e.preventDefault();
                 const username = e.target.username.value;
-                const isSuperuser = e.target.isSuperuser.checked;
-                handleCreateUser(username, isSuperuser);
+                handleCreateUser(username);
               }}
             >
               <div className="mb-4">
@@ -272,12 +229,7 @@ function AdminDashboard() {
                   className="w-full border px-3 py-2 rounded-lg"
                 />
               </div>
-              <div className="mb-4">
-                <label className="flex items-center">
-                  <input type="checkbox" name="isSuperuser" className="mr-2 caret-transparent" />
-                  <span className="text-gray-700">Superusuário</span>
-                </label>
-              </div>
+              <p className='text-gray-700'>Este usuário virá com a senha padrão.</p>
               <div className="flex justify-end gap-2 caret-transparent">
                 <button
                   type="button"

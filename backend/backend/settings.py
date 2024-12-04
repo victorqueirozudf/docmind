@@ -12,22 +12,21 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-5w@105on@_tmc5d$+%829p1n%)@q)#o4alujoulg)_y6riadd+'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -139,7 +138,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),  # Ajuste para 1 dia
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Ajuste para 1 dia
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -153,6 +152,6 @@ SIMPLE_JWT = {
 }
 
 # Ou para restringir a origens específicas
-#CORS_ALLOWED_ORIGINS = [
-#    "http://localhost:3000",  # Endereço do React
-#]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Endereço do React
+]

@@ -1,17 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import '../../index.css';
-import Logo from '../../assets/images/Logo.png';
-import UploadModal from '../features/UploadModal'; // Modal para criar novos chats
-import DeleteChatModal from '../features/DeleteModal'; // Modal para confirmar a exclusão de chats
+import UploadModal from '../features/UploadModal';
+import DeleteChatModal from '../features/DeleteModal'; 
 import UpdateChatModal from '../features/UpdateChatModal'; 
 import ChatDetailModal from '../features/ChatDetailModal'; 
-import { authAPI, chatAPI } from '../../axios'; // APIs de autenticação e chat
-import { useNavigate } from 'react-router-dom'; // Hook para navegação
+import { authAPI, chatAPI } from '../../axios'; 
 import ReactMarkdown from "react-markdown";
 import Navbar from '../layout/Navbar'
 
+
 function ChatInterface() {
-  const navigate = useNavigate(); // Hook para redirecionamento
   const dropdownRef = useRef(null); // Referência para detectar cliques fora do dropdown
 
   // Estados para gerenciar dados e UI
@@ -31,15 +29,25 @@ function ChatInterface() {
   const [chatToUpdate, setChatToUpdate] = useState(null);
   const [showChatDetailModal, setShowChatDetailModal] = useState(false);
 
+  /**
+   * Função para abrir o modal de detalhes do chat selecionado
+   */
   const handleOpenChatDetails = () => {
     setShowChatDetailModal(true);
   };
 
+  /**
+   * Função para fechar o modal de detalhes do chat
+   */
   const handleCloseChatDetails = () => {
     setShowChatDetailModal(false);
   };
 
-  // Função para converter base64 para UTF-8
+  /**
+   * Função para converter base64 para UTF-8
+   * @param {string} base64 - String codificada em base64
+   * @returns {string} - String decodificada em UTF-8
+   */
   const base64ToUtf8 = (base64) => {
     const binaryStr = atob(base64);
     const bytes = Uint8Array.from(binaryStr, char => char.charCodeAt(0));
@@ -47,29 +55,29 @@ function ChatInterface() {
     return decoder.decode(bytes);
   };
     
-  /** 
+  /**
    * Função para abrir o modal de criação de novo chat
    */
   const handleNewChat = () => {
     setShowModal(true);
   };
 
-  /** 
+  /**
    * Função para fechar o modal de criação de novo chat
    */
   const handleCloseModal = () => {
     setShowModal(false);
   };
 
-  /** 
+  /**
    * Função para criar um novo chat
-   * @param {string} chatName - Nome do novo chat
-   * @param {File} file - Arquivo opcional para upload
+   * @param {string} chat_name - Nome do novo chat
+   * @param {File[]} files - Arquivos opcionais para upload
    */
-  const handleCreateChat = async (chatName, files) => {
+  const handleCreateChat = async (chat_name, files) => {
     try {
       const formData = new FormData();
-      formData.append('chatName', chatName);
+      formData.append('chat_name', chat_name);
     
       if (files && files.length > 0) {
         files.forEach((file) => {
@@ -93,6 +101,7 @@ function ChatInterface() {
   */
   const handleSelectChat = async (chat) => {
     setSelectedChat(chat); // Define o chat selecionado inicialmente
+    setDropdownOpen(null); // Fecha o dropdown ao selecionar outro chat
 
     try {
       const response = await chatAPI.getChatDetails(chat.thread_id); // Utiliza a função definida no chatAPI
@@ -143,51 +152,155 @@ function ChatInterface() {
     }
   };
   
-  /** 
- * Função para enviar uma nova mensagem no chat selecionado
- */
+  /**
+   * Função para enviar uma nova mensagem no chat selecionado
+   */
   const handleSendMessage = async () => {
     if (selectedChat && newMessage.trim()) {
-      // Cria a mensagem do usuário localmente
       const userMessage = {
         id: Date.now(), // ID temporário
         inputContent: newMessage, // A mensagem enviada pelo usuário
         sender: 'user',
       };
-
-      // Atualiza as mensagens localmente
+  
       setSelectedChat((prevChat) => ({
         ...prevChat,
         messages: [...(prevChat.messages || []), userMessage],
       }));
-
+  
       setNewMessage(''); // Limpa o campo de entrada
-
+  
+      // Adiciona o indicador de "digitando"
+      setSelectedChat((prevChat) => ({
+        ...prevChat,
+        messages: [
+          ...(prevChat.messages || []),
+          {
+            id: 'typing',
+            outputContent: <div className="dot-flashing"></div>, // Elemento de animação
+            sender: 'api',
+          },
+        ],
+      }));
+  
       try {
-        // Envia a pergunta para o backend
         const response = await chatAPI.sendQuestionToChat(selectedChat.thread_id, {
           question: newMessage,
         });
-
-        // Adiciona a resposta da API
+  
         const apiMessage = {
-          id: Date.now() + 1, // ID temporário para a resposta
+          id: Date.now(), // ID para a resposta
           outputContent: response.data.answer, // Resposta da API
           sender: 'api',
         };
-
-        // Atualiza as mensagens com a resposta do backend
+  
+        // Substitui o indicador "Digitando..." pela resposta
         setSelectedChat((prevChat) => ({
           ...prevChat,
-          messages: [...prevChat.messages, apiMessage],
+          messages: [...prevChat.messages.filter((msg) => msg.id !== 'typing'), apiMessage],
         }));
       } catch (error) {
         console.error('Erro ao enviar mensagem:', error);
+        // Remove o indicador "Digitando..." em caso de erro
+        setSelectedChat((prevChat) => ({
+          ...prevChat,
+          messages: prevChat.messages.filter((msg) => msg.id !== 'typing'),
+        }));
       }
     }
   };
 
-  /** 
+  /**
+   * Função para abrir o modal de atualização do chat selecionado
+   * @param {object} chat - Objeto do chat a ser atualizado
+   */
+  const handleUpdateChatOpen = (chat) => {
+    setChatToUpdate(chat);
+    setShowUpdateModal(true);
+  };
+
+  /**
+   * Função para fechar o modal de atualização de chat
+   */
+  const handleUpdateModalClose = () => {
+    setShowUpdateModal(false);
+    setChatToUpdate(null);
+  };
+
+  /**
+   * Função para atualizar um chat existente
+   * @param {number} threadId - ID do chat a ser atualizado
+   * @param {FormData} formData - Dados do formulário para atualização
+   */
+  const handleUpdateChat = async (threadId, formData) => {
+    try {
+      const response = await chatAPI.updateChat(threadId, formData); // Chama o método da API
+      const updatedChat = response.data; // Obtenha o chat atualizado do backend
+
+      // Atualiza a lista de chats no estado
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat.thread_id === threadId ? { ...chat, ...updatedChat } : chat
+        )
+      );
+
+      // Atualiza o chat selecionado, se estiver editando o atual
+      if (selectedChat && selectedChat.thread_id === threadId) {
+        setSelectedChat((prevChat) => ({ ...prevChat, ...updatedChat }));
+      }
+
+      handleUpdateModalClose(); // Fecha a modal
+
+      if (response.status !== 200) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro desconhecido ao atualizar o chat.');
+      }
+
+      window.alert('Chat atualizado com sucesso!');
+    } catch (error) {
+      window.alert('Erro ao atualizar chat:', error);
+    }
+  };
+    
+  /**
+   * Função para confirmar a exclusão de um chat
+   * @param {object} chat - Objeto do chat a ser excluído
+   */
+  const handleDeleteChatConfirm = (chat) => {
+    setChatToDelete(chat);
+    setShowDeleteModal(true);
+  };
+
+  /**
+   * Função para cancelar a exclusão de um chat
+   */
+  const handleDeleteChatCancel = () => {
+    setShowDeleteModal(false);
+    setChatToDelete(null);
+  };
+
+  /**
+   * Função para deletar um chat selecionado
+   */
+  const handleDeleteChat = async () => {
+    try {
+      await chatAPI.deleteChat(chatToDelete.thread_id); // Envia requisição de deleção para o backend
+      setChats(chats.filter((chat) => chat.thread_id !== chatToDelete.thread_id)); // Atualiza a lista de chats
+      setShowDeleteModal(false); // Fecha o modal de exclusão
+      setChatToDelete(null); // Reseta o chat a ser deletado
+
+      // Se o chat deletado estava selecionado, reseta a seleção
+      if (selectedChat && selectedChat.thread_id === chatToDelete.thread_id) {
+        setSelectedChat(null);
+      }
+      
+      window.alert("Chat apagado com sucesso!");
+    } catch (error) {
+      console.error('Erro ao deletar chat:', error);
+    }
+  };
+
+  /**
    * Função para alternar a visibilidade do dropdown de opções do chat
    * @param {number} id - ID do chat
    */
@@ -195,7 +308,7 @@ function ChatInterface() {
     setDropdownOpen(dropdownOpen === id ? null : id);
   };
 
-  /** 
+  /**
    * Função para fechar o dropdown ao clicar fora dele
    * @param {Event} event - Evento de clique
    */
@@ -205,7 +318,7 @@ function ChatInterface() {
     }
   };
 
-  /** 
+  /**
    * Hook para adicionar/remover listener de clique para fechar dropdown
    */
   useEffect(() => {
@@ -219,63 +332,7 @@ function ChatInterface() {
     };
   }, [dropdownOpen]);
 
-  const handleUpdateChatOpen = (chat) => {
-    setChatToUpdate(chat);
-    setShowUpdateModal(true);
-  };
-
-  const handleUpdateModalClose = () => {
-    setShowUpdateModal(false);
-    setChatToUpdate(null);
-  };
-
-  const handleUpdateChat = async (threadId, formData) => {
-    try {
-      await chatAPI.updateChat(threadId, formData); // Chama o método da API
-      // Atualize a lista de chats ou o chat selecionado, se necessário
-      handleUpdateModalClose();
-    } catch (error) {
-      console.error('Erro ao atualizar chat:', error);
-    }
-  };
-  
-  /** 
-   * Função para confirmar a exclusão de um chat
-   * @param {object} chat - Objeto do chat a ser excluído
-   */
-  const handleDeleteChatConfirm = (chat) => {
-    setChatToDelete(chat);
-    setShowDeleteModal(true);
-  };
-
-  /** 
-   * Função para deletar um chat
-   */
-  const handleDeleteChat = async () => {
-    try {
-      await chatAPI.deleteChat(chatToDelete.thread_id); // Envia requisição de deleção para o backend
-      setChats(chats.filter((chat) => chat.thread_id !== chatToDelete.thread_id)); // Atualiza a lista de chats
-      setShowDeleteModal(false); // Fecha o modal de exclusão
-      setChatToDelete(null); // Reseta o chat a ser deletado
-
-      // Se o chat deletado estava selecionado, reseta a seleção
-      if (selectedChat && selectedChat.thread_id === chatToDelete.thread_id) {
-        setSelectedChat(null);
-      }
-    } catch (error) {
-      console.error('Erro ao deletar chat:', error);
-    }
-  };
-
-  /** 
-   * Função para cancelar a exclusão de um chat
-   */
-  const handleDeleteChatCancel = () => {
-    setShowDeleteModal(false);
-    setChatToDelete(null);
-  };
-
-  /** 
+  /**
    * Hook para buscar a lista de chats do backend ao montar o componente
    */
   useEffect(() => {
@@ -290,7 +347,7 @@ function ChatInterface() {
     fetchChats();
   }, []);
 
-  /** 
+  /**
    * Hook para buscar os dados do usuário logado ao montar o componente
    */
   useEffect(() => {
@@ -305,49 +362,9 @@ function ChatInterface() {
     fetchUserData();
   }, []);
 
-  /** 
-   * Função para realizar o logout do usuário
+  /**
+   * Função para rolar manualmente para o final da lista de mensagens
    */
-  const handleLogout = () => {
-    const refreshToken = localStorage.getItem('refresh'); // Obtém o token de refresh
-
-    if (!refreshToken) {
-      console.error('Token de refresh não encontrado.');
-      // Remove tokens existentes e redireciona
-      localStorage.removeItem('access');
-      localStorage.removeItem('refresh');
-      localStorage.removeItem('sessionid');
-      navigate('/');
-      return;
-    }
-
-    const logoutData = {
-      refresh_token: refreshToken, // Dados para logout
-    };
-
-    authAPI
-      .logout(logoutData) // Chama a API de logout
-      .then((response) => {
-        // Remove tokens do localStorage
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('sessionid');
-
-        // Redireciona para a página de login
-        navigate('/');
-      })
-      .catch((error) => {
-        // Mesmo se o logout falhar, remove tokens e redireciona
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('sessionid');
-
-        navigate('/');
-
-        console.error('Erro ao fazer logout:', error);
-      });
-  };
-
   const handleManualScroll = () => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
@@ -357,7 +374,9 @@ function ChatInterface() {
     }
   };
 
-
+  /**
+   * Hook para gerenciar o comportamento de scroll na área de mensagens
+   */
   useEffect(() => {
     const handleScroll = () => {
       if (scrollRef.current) {
@@ -380,10 +399,13 @@ function ChatInterface() {
       }
     };
   }, [scrollRef]);
-  
+
+  /**
+   * Hook para rolar automaticamente para o final quando novas mensagens são adicionadas,
+   * mas somente se o usuário já estiver no final
+   */
   useEffect(() => {
     if (scrollRef.current && isAtBottom) {
-      // Role automaticamente para o final, mas somente se o usuário já estiver no final
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
         behavior: "smooth",
@@ -394,7 +416,7 @@ function ChatInterface() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navbar */}
-      <Navbar onLogout={handleLogout} user={user} />
+      <Navbar user={user} /> {/* Remova a prop onLogout */}
 
       <div className="flex flex-1">
         {/* Sidebar */}
@@ -413,7 +435,7 @@ function ChatInterface() {
           </button>
 
           {/* Listagem dos chats */}
-          <div onClick={() => setDropdownOpen(null)}>
+          <div onClick={() => setDropdownOpen(null)} className="flex-1 overflow-y-auto max-h-[calc(100vh-260px)] scrollbar"> {/*overflow-y-auto max-h-[calc(100vh-260px)]*/}
             <p className="text-gray-600 font-medium mb-3">Suas conversas</p>
             <ul>
               {chats.map((chat) => (
@@ -429,7 +451,7 @@ function ChatInterface() {
                       <svg className="h-5 w-5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
                         <path d="M123.6 391.3c12.9-9.4 29.6-11.8 44.6-6.4c26.5 9.6 56.2 15.1 87.8 15.1c124.7 0 208-80.5 208-160s-83.3-160-208-160S48 160.5 48 240c0 32 12.4 62.8 35.7 89.2c8.6 9.7 12.8 22.5 11.8 35.5c-1.4 18.1-5.7 34.7-11.3 49.4c17-7.9 31.1-16.7 39.4-22.7zM21.2 431.9c1.8-2.7 3.5-5.4 5.1-8.1c10-16.6 19.5-38.4 21.4-62.9C17.7 326.8 0 285.1 0 240C0 125.1 114.6 32 256 32s256 93.1 256 208s-114.6 208-256 208c-37.1 0-72.3-6.4-104.1-17.9c-11.9 8.7-31.3 20.6-54.3 30.6c-15.1 6.6-32.3 12.6-50.1 16.1c-.8 .2-1.6 .3-2.4 .5c-4.4 .8-8.7 1.5-13.2 1.9c-.2 0-.5 .1-.7 .1c-5.1 .5-10.2 .8-15.3 .8c-6.5 0-12.3-3.9-14.8-9.9c-2.5-6-1.1-12.8 3.4-17.4c4.1-4.2 7.8-8.7 11.3-13.5c1.7-2.3 3.3-4.6 4.8-6.9l.3-.5z" />
                       </svg>
-                      <span className="truncate">{chat.chatName}</span>
+                      <span className="truncate">{chat.chat_name}</span>
                     </div>
                     
                     {/* Botão de opções do chat */}
@@ -447,7 +469,7 @@ function ChatInterface() {
                       
                       {/* Dropdown com opções de atualizar e apagar chat */}
                       {dropdownOpen === chat.thread_id && (
-                        <div ref={dropdownRef} className="absolute z-10 bg-white border rounded-lg shadow-md left-6 top-1 mt-2">
+                        <div ref={dropdownRef} className="absolute z-50 bg-white border rounded-lg shadow-md right-6 bottom-0 mt-2">
                           <button
                             onClick={() => handleUpdateChatOpen(chat)}
                             className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hover:underline"
@@ -468,6 +490,13 @@ function ChatInterface() {
               ))}
             </ul>
           </div>
+          <div>
+            <a href="https://t.me/docmind_tcc_bot" target="_blank" rel="noopener noreferrer">
+              <button className='w-full py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800'>
+                Acessar Telegram
+              </button>
+            </a>
+          </div>
         </div>
 
         {/* Área do chat selecionado */}
@@ -475,7 +504,7 @@ function ChatInterface() {
           {/* Título do chat */}
           <div className="sticky top-0 flex items-center justify-between border-b pb-5">
             <h2 className="text-2xl font-extrabold caret-transparent">
-              {selectedChat?.chatName || 'Sem conversa selecionada'}
+              {selectedChat?.chat_name || 'Sem conversa selecionada'}
             </h2>
             <div className={`${selectedChat ? 'block' : 'hidden'} caret-transparent`} >
               <button
@@ -490,7 +519,7 @@ function ChatInterface() {
           </div>
 
           {/* Área de mensagens */}
-          <div ref={scrollRef} className='overflow-y-auto'>
+          <div ref={scrollRef} className="overflow-y-auto scrollbar">
             <div className="flex-1 flex flex-col h-[calc(100vh-220px)] p-5">
               {selectedChat ? (
                 selectedChat.messages && selectedChat.messages.length > 0 ? (
@@ -498,14 +527,22 @@ function ChatInterface() {
                     <React.Fragment key={index}>
                       {/* Mensagem do usuário */}
                       {message.inputContent && (
-                        <div className="p-2 my-2 rounded-lg max-w-3xl bg-black text-white ml-auto text-right">
+                        <div className="p-2 my-2 rounded-lg max-w-3xl bg-black text-white ml-auto text-left">
                           {message.inputContent}
                         </div>
                       )}
-                      {/* Resposta da IA */}
+                      {/* Resposta da IA ou indicador de "Digitando..." */}
                       {message.outputContent && (
-                        <div className="p-2 my-2 rounded-lg max-w-3xl bg-gray-200 mr-auto text-left">
-                          <ReactMarkdown>{message.outputContent}</ReactMarkdown>
+                        <div
+                          className={`p-2 my-2 rounded-lg max-w-3xl ${
+                            message.sender === 'api' && message.id === 'typing'
+                              ? 'bg-gray-200 p-5'
+                              : 'bg-gray-200'
+                          } mr-auto text-left`}
+                        >
+                          {typeof message.outputContent === 'string'
+                            ? <ReactMarkdown>{message.outputContent}</ReactMarkdown>
+                            : message.outputContent /* Renderiza o JSX diretamente */}
                         </div>
                       )}
                     </React.Fragment>
@@ -515,12 +552,12 @@ function ChatInterface() {
                 )
               ) : (
                 <div className="text-center caret-transparent">
-                  <h3 className="text-2xl font-bold text-gray-700">Sem conversa selecionada</h3>
+                  <h3 className="text-2xl font-bold text-black">Sem conversa selecionada</h3>
                   <p className="text-gray-500 mt-2">
                     Selecione uma conversa já criada, clique em Novo Chat, ou{' '}
                     <span
                       className="text-gray-700 cursor-pointer underline"
-                      onClick={handleNewChat} // Certifique-se de ter esta função definida
+                      onClick={handleNewChat}
                     >
                       clique aqui
                     </span>{' '}
@@ -528,7 +565,6 @@ function ChatInterface() {
                   </p>
                 </div>
               )}
-
               {isScrollable && (
                 <button
                   onClick={handleManualScroll}
@@ -540,8 +576,8 @@ function ChatInterface() {
               )}
             </div>
             <div ref={messagesEndRef} />
-          </div>      
-          
+          </div>
+      
 
           {/* Input fixo para enviar nova mensagem */}
           {selectedChat && (
@@ -552,9 +588,14 @@ function ChatInterface() {
                   placeholder="Digite sua mensagem..."
                   value={newMessage || ''}
                   onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newMessage.trim()) {
+                      handleSendMessage();
+                    }
+                  }}
                   className="h-12 flex-1 px-4 py-2 border rounded-xl focus:outline-none focus:border-gray-400"
                 />
-                <button onClick={handleSendMessage} className="absolute right-3 text-black hover:text-black">
+                <button onClick={handleSendMessage} className="absolute right-3 text-black hover:text-black" >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 512 512"
@@ -591,7 +632,7 @@ function ChatInterface() {
           showModal={showUpdateModal}
           onClose={handleUpdateModalClose}
           onUpdateChat={handleUpdateChat}
-          initialChatName={chatToUpdate?.chatName || ''}
+          initialChatName={chatToUpdate?.chat_name || ''}
           threadId={chatToUpdate?.thread_id}
         />
       )}
@@ -599,7 +640,7 @@ function ChatInterface() {
       {/* Modal para confirmar exclusão de chat */}
       {showDeleteModal && (
         <DeleteChatModal
-          chatName={chatToDelete?.chatName}
+          chatName={chatToDelete?.chat_name}
           onClose={handleDeleteChatCancel}
           onDelete={handleDeleteChat}
         />

@@ -46,7 +46,7 @@ function Login() {
         mode: CryptoJS.mode.CBC,
         padding: CryptoJS.pad.Pkcs7,
       }).toString();
-
+      
       // Dados para login
       const loginData = { 
         username: username,
@@ -65,6 +65,8 @@ function Login() {
           if (response.data.sessionid) {
             localStorage.setItem('sessionid', response.data.sessionid);
           }
+          
+          window.alert("Login realizado com sucesso!");
 
           // Navegar para a página de chat
           navigate('/chat');
@@ -142,7 +144,7 @@ function Login() {
             <div className="text-center mb-6">
               <button
                 onClick={() => setShowForgotPasswordModal(true)}
-                className="text-blue-500 hover:underline"
+                className="text-blue-500 font-semibold hover:underline"
                 type="button"
               >
                 Esqueceu a senha?

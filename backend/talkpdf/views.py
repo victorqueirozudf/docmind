@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404
 
 from .models import ChatCheckpoint, ChatDetails
 from .serializers import ChatDetailsSerializer, ChatCheckpointSerializer
-from .controllers import get_vectorstore_from_files, get_anwser
+from .rag import get_vectorstore_from_files, get_anwser
 
 class PDFChatView(APIView):
     """
@@ -111,7 +111,7 @@ class PDFChatView(APIView):
         }
         """
         thread_id = uuid.uuid4()
-        chat_name = request.data.get('chatName')
+        chat_name = request.data.get('chat_name')
         pdf_files = request.FILES.getlist('pdfs')  # Obter lista de PDFs enviados
 
         if not pdf_files:
@@ -131,7 +131,7 @@ class PDFChatView(APIView):
             user=request.user,
             thread_id=thread_id,
             path=os.path.join('temp', str(thread_id)),  # O controller já configura 'temp_dir'
-            chatName=chat_name,
+            chat_name=chat_name,
             file_names=file_names  # Adicione os nomes dos arquivos
         )
 
@@ -203,7 +203,7 @@ class PDFChatView(APIView):
         """
         Atualiza um chat existente com um novo nome e/ou um novo arquivo PDF, regenerando os vetores necessários.
 
-        **URL:** `PUT /api/chats/put/<thread_id>/`
+        **URL:** PUT /api/chats/put/<thread_id>/
 
         **Cabeçalhos HTTP:**
             - Authorization: 'Bearer <token>'
@@ -230,38 +230,39 @@ class PDFChatView(APIView):
             PUT /api/chats/36e9d38f-413f-4866-8609-8d657ed9fd29/
 
         **Exemplo de Erro:**
-        ```json
+
+json
         {
             "error": "Nenhum dado fornecido para atualização."
         }
-        ```
+
         """
         chat = get_object_or_404(ChatDetails, thread_id=thread_id, user=request.user)
 
-        chat_name = request.data.get('chatName', chat.chatName)
+        chat_name = request.data.get('chat_name', chat.chat_name)
         pdf_files = request.FILES.getlist('pdfs')
 
-        if not pdf_files and 'chatName' not in request.data:
-            return Response({'error': 'Nenhum dado fornecido para atualização.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not pdf_files and 'chat_name' not in request.data:
+            return Response({'error': 'Nenhum dado fornecido para atualização.'},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         # Atualizar o nome do chat, se fornecido
-        if 'chatName' in request.data:
-            chat.chatName = chat_name
+        if 'chat_name' in request.data:
+            chat.chat_name = chat_name
 
         # Se novos PDFs forem fornecidos, processe-os
         if pdf_files:
             try:
-                if os.path.exists(chat.path):
-                    shutil.rmtree(chat.path, ignore_errors=True)
+                folder_path = get_vectorstore_from_files(pdf_files, thread_id)
 
                 # Extraia os nomes dos arquivos e atualize no banco de dados
                 file_names = [file.name for file in pdf_files]
                 chat.file_names = file_names
 
-                folder_path = get_vectorstore_from_files(pdf_files, thread_id)
                 chat.path = folder_path
             except Exception as e:
-                return Response({'error': f'Erro ao processar os PDFs: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({'error': f'Erro ao processar os PDFs: {str(e)}'},
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Salvar as alterações no chat
         chat.save()
