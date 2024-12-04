@@ -30,7 +30,6 @@ function UpdateChatModal({ showModal, onClose, onUpdateChat, initialChatName, th
       setChatName('');
       setFiles([]);
       setShowConfirmationModal(false); // Fecha a modal de confirmação
-      window.alert("Seu chat foi atualizado com sucesso! ")
       onClose(); // Fecha a modal principal após o processamento
     } catch (error) {
       console.error('Erro ao atualizar o chat:', error);

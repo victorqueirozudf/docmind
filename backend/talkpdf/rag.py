@@ -88,7 +88,7 @@ def get_vectorstore_from_files(pdf_docs, thread_id):
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
         print(f"Pasta criada: {folder_path}\n")
-
+    
     # Salva o índice FAISS
     vectorstore.save_local(folder_path)
     print(f"Vetores salvos em {folder_path}\n")

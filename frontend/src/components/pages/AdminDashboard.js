@@ -94,7 +94,7 @@ function AdminDashboard() {
       const data = { username };
       console.log("Enviando dados para o backend:", data); // Log para verificar os dados enviados
       const response = await authAPI.signup(data);
-      alert(`Usuário ${response.data.username} criado com sucesso!`);
+      alert(`Usuário ${username} criado com sucesso!`);
       // Atualiza a lista de usuários
       const updatedUsers = await adminAPI.listUsers();
       setUsers(updatedUsers.data);

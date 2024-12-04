@@ -171,7 +171,9 @@ export const chatAPI = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-    }),
+      validateStatus: () => true, 
+    }, 
+  ),
 
   // Get chat details and history by thread_id
   getChatDetails: (thread_id) => API.get(`api/chats/${thread_id}/`),

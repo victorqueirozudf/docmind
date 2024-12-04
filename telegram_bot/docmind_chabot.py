@@ -164,7 +164,7 @@ async def upload_document_receive_chat_name(update: Update, context: ContextType
     context.user_data['chat_name'] = chat_name
     print(f"User {user_id} set the chat name to: {chat_name}")
     await update.message.reply_text(
-        "Nome do chat recebido com sucesso!\n\nPor favor, envie o documento que deseja subir (PDF ou DOCX).\n\nATENÇÃO: o nosso sistema utiliza sistemas terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendamos não utilizar este sistema."
+        "Nome do chat recebido com sucesso!\n\nPor favor, envie o documento que deseja subir (apenas PDF).\n\nATENÇÃO: o nosso sistema utiliza sistemas terceiros para realizar o processamento do documento. Portanto, caso seu documento possua dados sensíveis, recomendamos não utilizar este sistema."
     )
     return WAITING_FOR_DOCUMENT
 
@@ -181,9 +181,8 @@ async def upload_document_receive_document(update: Update, context: ContextTypes
     if document:
         file_type = document.mime_type
         print(f"User {user_id} sent a document with MIME type: {file_type}")
-        if file_type not in ['application/pdf',
-                             'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
-            await update.message.reply_text("Por favor, envie um arquivo PDF ou DOCX válido.")
+        if file_type not in ['application/pdf']:
+            await update.message.reply_text("Por favor, envie um arquivo PDF válido.")
             return WAITING_FOR_DOCUMENT
         # Store document information in context for future use
         context.user_data['document'] = document

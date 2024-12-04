@@ -255,9 +255,6 @@ json
             try:
                 folder_path = get_vectorstore_from_files(pdf_files, thread_id)
 
-                if os.path.exists(chat.path):
-                    shutil.rmtree(chat.path, ignore_errors=True)
-
                 # Extraia os nomes dos arquivos e atualize no banco de dados
                 file_names = [file.name for file in pdf_files]
                 chat.file_names = file_names

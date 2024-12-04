@@ -249,9 +249,16 @@ function ChatInterface() {
         setSelectedChat((prevChat) => ({ ...prevChat, ...updatedChat }));
       }
 
-      handleUpdateModalClose(); // Fecha o modal
+      handleUpdateModalClose(); // Fecha a modal
+
+      if (response.status !== 200) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro desconhecido ao atualizar o chat.');
+      }
+
+      window.alert('Chat atualizado com sucesso!');
     } catch (error) {
-      console.error('Erro ao atualizar chat:', error);
+      window.alert('Erro ao atualizar chat:', error);
     }
   };
     
