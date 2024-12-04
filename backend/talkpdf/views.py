@@ -376,6 +376,12 @@ class PDFChatDetailView(APIView):
         ```
         """
         question = request.data.get("question")
+        files = request.data.get("files")
+
+        if files:
+            qtyFiles = len(files)
+        else:
+            qtyFiles = 1
 
         if not question:
             return Response({"error": "Pergunta é necessária"}, status=status.HTTP_400_BAD_REQUEST)
@@ -384,7 +390,7 @@ class PDFChatDetailView(APIView):
         chat = get_object_or_404(ChatDetails, thread_id=thread_id, user=request.user)
 
         try:
-            answer = get_anwser(str(chat.thread_id), question)
+            answer = get_anwser(str(chat.thread_id), question, qtyFiles)
         except Exception as e:
             print(f"Error {e}")
             return Response({"error": f"Não foi possível obter uma resposta: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

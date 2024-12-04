@@ -67,12 +67,12 @@ def get_audio_answer(audio_path):
 
     try:
         with open(audio_path, "rb") as audio_file:
-            transcription = openai.Audio.transcribe(
-                model="whisper-1",
+            transcription = openai.audio.transcriptions.create(
+                model="whisper-1", 
                 file=audio_file
             )
-        print(f"Transcrição do áudio: {transcription['text']}")
-        return transcription['text']
+        print(f"Transcrição do áudio: {transcription.text}")
+        return "**Transcrição** \n" + transcription.text
     except Exception as e:
         print(f"Erro ao transcrever o áudio: {e}")
         raise e  # Propaga a exceção para ser tratada na função chamadora

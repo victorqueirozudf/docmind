@@ -186,6 +186,7 @@ function ChatInterface() {
       try {
         const response = await chatAPI.sendQuestionToChat(selectedChat.thread_id, {
           question: newMessage,
+          files: selectedChat.file_names
         });
   
         const apiMessage = {

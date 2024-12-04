@@ -9,7 +9,7 @@ __pycache__/
 *.env
 *.venv/
 venv/
-temp/
+/temp
 *.temp/
 *.egg-info/
 dist/

@@ -113,16 +113,23 @@ def load_vectorstore_from_file(thread_id):
         # Exemplo: return get_vectorstore_from_files(pdf_docs, thread_id)
         return None, folder_path  # Ajuste conforme a lógica desejada
 
-def call_model(state: MessagesState, vectorstore, question):
+def call_model(state: MessagesState, vectorstore, question, lenFiles):
     # Modelo de chat
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 
     # Filtrar apenas HumanMessage
     human_messages = [msg.content for msg in state['messages'] if isinstance(msg, HumanMessage)]
-    ai_messages = [msg.content for msg in state['messages'] if isinstance(msg, AIMessage)][-3:]
 
     retriever = vectorstore.as_retriever()
-    retrieved_docs = retriever.invoke(state["messages"][-1].content)
+    
+    if lenFiles <= 2:
+        retriever.search_kwargs['k'] = 10  # Aumente este valor conforme necessário
+        print("Irá retornar 10 chunks")
+    else:
+        retriever.search_kwargs['k'] = 20  # Aumente este valor conforme necessário
+        print("Irá retornar 20 chunks")
+
+    retrieved_docs = retriever.invoke(question)
 
     # Concatene os resultados dos documentos recuperados em ordem
     pdf_response = "\n\n".join([
@@ -131,21 +138,43 @@ def call_model(state: MessagesState, vectorstore, question):
     ])
 
 
-    input_user = "Históricos de mensagens passadas: \n " + str(human_messages)
+    input_user = str(human_messages)
 
     prompt = [
         (
             "system",
-            "Você é um assistente especializado em leitura de documentos PDF. Responda às perguntas do usuário de forma clara, concisa e relevante, limitando a resposta aos pontos mais importantes."
+            """
+Você é um assistente virtual especializado em fornecer respostas baseadas em documentos PDF fornecidos.
+
+**Instruções:**
+- Use exclusivamente as informações dos documentos fornecidos para responder às perguntas.
+- Se a resposta não estiver nos documentos, ou o contexto não tiver nada haver com a pergunta, indique educadamente que não possui essa informação.
+- Mantenha as respostas claras, concisas e diretas ao ponto.
+- Não inclua informações externas ou suposições.
+- Quando relevante, mencione a fonte e a página de onde a informação foi extraída.
+- Caso a pergunte esteja com uma FLAG de transcricão, retornar a transcrição no começo do texto.
+
+**Exemplo de Resposta:**
+
+*Pergunta:* Qual é o prazo para submissão do relatório anual?
+
+*Resposta:* O prazo para submissão do relatório anual é até 31 de março de cada ano, conforme indicado na página 15 do documento "Regulamento Interno".
+
+**Comandos do usuário:** As vezes, o usuário pode solicitar comando como: exclua candidato X, adicione candidato X. Você obedecer esses comando SEMPRE estes comandos.
+            """
         ),
         (
             "human",
             f"""
-                ***Pergunta:*** {question}\n\n
-                ***Aqui está um trecho do documento:***\n{pdf_response}\n
-                ***Históricos de perguntas passadas:***\n {input_user}
-                ***Históricos das últimas três respostas do chatbot:***\n {ai_messages}
-                Por favor, responda à pergunta com base no documento de forma direta.
+***Pergunta:*** {question}
+
+***Documentos Fornecidos:***
+{pdf_response}
+
+***Histórico das Perguntas:***
+{input_user}
+
+Por favor, forneça a resposta seguindo as instruções acima.
             """
         )
     ]
@@ -154,19 +183,19 @@ def call_model(state: MessagesState, vectorstore, question):
     
     response = model.invoke(prompt)
 
-#    input_tokens = num_tokens_from_string(prompt[0][1]) + num_tokens_from_string(prompt[1][1])
-#   output_tokens = num_tokens_from_string(response.content)
+    input_tokens = num_tokens_from_string(prompt[0][1]) + num_tokens_from_string(prompt[1][1])
+    output_tokens = num_tokens_from_string(response.content)
 
-#    price_per_one_million = 0.150
+    price_per_one_million = 0.150
 
-    #print(f"""Total de tokens e valor total:
-#Input: {input_tokens} - US${(input_tokens * price_per_one_million)/1000000:.8f}
-#Output: {output_tokens} - US${(output_tokens * price_per_one_million)/1000000:.8f}
-#Total tokens: {input_tokens + output_tokens} - Total gasto: US${((input_tokens + output_tokens) * price_per_one_million)/1000000:.8f}\n\n""", end="")
+    print(f"""Total de tokens e valor total:
+    #Input: {input_tokens} - US${(input_tokens * price_per_one_million)/1000000:.8f}
+    #Output: {output_tokens} - US${(output_tokens * price_per_one_million)/1000000:.8f}
+    #Total tokens: {input_tokens + output_tokens} - Total gasto: US${((input_tokens + output_tokens) * price_per_one_million)/1000000:.8f}\n\n""", end="")
 
     return {"messages": response}
 
-def get_anwser(thread_id, question):
+def get_anwser(thread_id, question, qtyFiles):
     vectorstore, folder_path = load_vectorstore_from_file(thread_id)
     if not vectorstore:
         # Lógica para carregar ou criar o vectorstore se não existir
@@ -181,7 +210,7 @@ def get_anwser(thread_id, question):
 
     # Definir os nós no grafo
     workflow.add_edge(START, "model")
-    workflow.add_node("model", lambda state: call_model(state, vectorstore, question))
+    workflow.add_node("model", lambda state: call_model(state, vectorstore, question, qtyFiles))
 
     config = {"configurable": {"thread_id": thread_id}}
 
